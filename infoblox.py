@@ -29,23 +29,22 @@ class Infoblox(object):
         self.base_url = "https://{host}/wapi/v{version}/".format(host=host, version=api_version)
         self.auth = (self.user, self.password)
 
+    def invoke(self, method, tail, ok_codes=(200,), **params):
+        request = getattr(requests, method)
+        response = request(self.base_url + tail, auth=self.auth, verify=False, **params)
+        if response.status_code not in ok_codes:
+            response.raise_for_status()
+        payload = response.json()
+        if isinstance(payload, dict) and 'text' in data:
+            raise Exception(data['text'])
+        return payload
+
     def get_host_by_search(self, host):
         '''
         Search host by FQDN in infoblox by useing rest api
         '''
 
-        r = requests.get(url=self.rest_url + "record:host", auth=self.auth,
-                         params={'name~': host, 'view': self.dns_view}, verify=False)
-        if r.status_code == 200:
-            data = r.json()
-            if data:
-                return data
-            elif 'text' in data:
-                raise Exception(data['text'])
-            else:
-                return False
-        else:
-            r.raise_for_status()
+        return self.invoke('get', "record:host", params={'name~': host, 'view': self.dns_view})
 
     def create_host_record(self, address, host):
         '''
@@ -71,36 +70,21 @@ class Infoblox(object):
         else:
             raise Exception(msg="Error forming payload")
 
-        r = requests.post(url=self.rest_url + "record:host", auth=self.auth, verify=False, json=payload)
-        data = r.json()
-        if r.status_code == 200 or r.status_code == 201:
-            return data
-        elif 'text' in data:
-            raise Exception(data['text'])
-        else:
-            r.raise_for_status()
+        return self.invoke('post', "record:host", ok_codes=(200, 201), json=payload)
 
     def delete_host_record(self, host):
         '''
         Delete host in infoblox by useing rest api:
         '''
 
-        r = requests.get(url=self.rest_url + "record:host", auth=self.auth,
-                         params={'name': host, 'view': self.dns_view}, verify=False)
-        data = r.json()
-        if r.status_code == 200:
-            host_ref = data[0]['_ref']
-            if host_ref and re.match("record:host\/[^:]+:([^\/]+)\/", host_ref).group(1) == host:
-                r = requests.delete(url=self.rest_url + host_ref, auth=self.auth, verify=False)
-                if r.status_code == 200:
-                    msg="Object %s deleted" % (host)
-                    return  msg
-                else:
-                    r.raise_for_status()
-            else:
-                raise Exception("Received unexpected host reference: %s" % host_ref)
+        data = self.invoke('get', "record:host", params={'name': host, 'view': self.dns_view})
+        host_ref = data[0]['_ref']
+        m = re.match(r"record:host/[^:]+:([^/]+)/", host_ref)
+        if m and m.group(1) == host:
+            self.invoke('delete', host_ref)
+            return "Object %s deleted" % host
         else:
-            raise Exception("Host not found: %s" % host)
+            raise Exception("Received unexpected host reference: %s" % host_ref)
 
 
 # ---------------------------------------------------------------------------
