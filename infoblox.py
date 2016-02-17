@@ -43,11 +43,11 @@ class Infoblox(object):
                                 data = r.json()
                                 if data:
                                         return data
+                                elif 'text' in data:
+                                        self.module.fail_json(msg=data['text'])
                                 else:
                                         return False
                                         #self.module.fail_json(msg="Host %s not found" % host)
-                        elif 'text' in data:
-                                self.module.fail_json(msg=data['text'])
                         else:
                                 r.raise_for_status()
 
