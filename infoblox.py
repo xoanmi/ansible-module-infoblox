@@ -24,20 +24,18 @@ class Infoblox(object):
     def __init__(self, module, host , user, password, api_version, dns_view, net_view):
 
         self.module = module
-        self.host = host
-        self.user = user
-        self.password = password
-        self.api_version = api_version
-        self.dns_view = dns_view
-        self.net_view = net_view
+        self.net_view = net_view  # XXX: this is not used
+
+        self.base_url = "https://{host}/wapi/v{version}/".format(host=host, version=api_version)
+        self.auth = (self.user, self.password)
 
     def get_host_by_search(self, host):
         '''
         Search host by FQDN in infoblox by useing rest api
         '''
 
-        rest_url = "https://{self.host}/wapi/v{self.api_version}/record:host?name~={host}&view={self.dns_view}".format(self=self, host=host)
-        r = requests.get(url=rest_url, auth=(self.user, self.password), verify=False)
+        r = requests.get(url=self.rest_url + "record:host", auth=self.auth,
+                         params={'name~': host, 'view': self.dns_view}, verify=False)
         if r.status_code == 200:
             data = r.json()
             if data:
@@ -66,8 +64,6 @@ class Infoblox(object):
         else:
             raise Exception(msg="Expected IP or NET address in CIDR format")
 
-        rest_url = "https://{self.host}/wapi/v{self.api_version}/record:host?_return_fields=ipv4addrs".format(self=self)
-
         if network:
             payload = {"ipv4addrs": [{"ipv4addr": "func:nextavailableip:"+network}],"name": host, "view":self.dns_view}
         elif ipv4addr:
@@ -75,7 +71,7 @@ class Infoblox(object):
         else:
             raise Exception(msg="Error forming payload")
 
-        r = requests.post(url=rest_url, auth=(self.user, self.password), verify=False, json=payload)
+        r = requests.post(url=self.rest_url + "record:host", auth=self.auth, verify=False, json=payload)
         data = r.json()
         if r.status_code == 200 or r.status_code == 201:
             return data
@@ -89,15 +85,13 @@ class Infoblox(object):
         Delete host in infoblox by useing rest api:
         '''
 
-        rest_url = "https://{self.host}/wapi/v{self.api_version}/record:host?name={host}&view={self.dns_view}".format(self=self, host=host)
-
-        r = requests.get(url=rest_url, auth=(self.user, self.password), verify=False)
+        r = requests.get(url=self.rest_url + "record:host", auth=self.auth,
+                         params={'name': host, 'view': self.dns_view}, verify=False)
         data = r.json()
         if r.status_code == 200:
             host_ref = data[0]['_ref']
             if host_ref and re.match("record:host\/[^:]+:([^\/]+)\/", host_ref).group(1) == host:
-                rest_url = 'https://' + self.host + '/wapi/v' + self.api_version + '/' + host_ref
-                r = requests.delete(url=rest_url, auth=(self.user, self.password), verify=False)
+                r = requests.delete(url=self.rest_url + host_ref, auth=self.auth, verify=False)
                 if r.status_code == 200:
                     msg="Object %s deleted" % (host)
                     return  msg
