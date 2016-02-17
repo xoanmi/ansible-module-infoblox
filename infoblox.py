@@ -36,7 +36,7 @@ class Infoblox(object):
         Search host by FQDN in infoblox by useing rest api
         '''
 
-        rest_url = 'https://' + self.host + '/wapi/v' + self.api_version + '/record:host?name~=' + host + '&view=' + self.dns_view
+        rest_url = "https://{self.host}/wapi/v{self.api_version}/record:host?name~={host}&view={self.dns_view}".format(self=self, host=host)
         try:
             r = requests.get(url=rest_url, auth=(self.user, self.password), verify=False)
             if r.status_code == 200:
@@ -71,7 +71,7 @@ class Infoblox(object):
         else:
             self.module.fail_json(msg="Expected IP or NET address in CIDR format")
 
-        rest_url = 'https://' + self.host + '/wapi/v' + self.api_version + '/record:host' + '?_return_fields=ipv4addrs'
+        rest_url = "https://{self.host}/wapi/v{self.api_version}/record:host?_return_fields=ipv4addrs".format(self=self)
 
         if network:
             payload = {"ipv4addrs": [{"ipv4addr": "func:nextavailableip:"+network}],"name": host, "view":self.dns_view}
@@ -98,7 +98,7 @@ class Infoblox(object):
         Delete host in infoblox by useing rest api:
         '''
 
-        rest_url = 'https://' + self.host + '/wapi/v' + self.api_version + '/record:host?name=' + host + '&view=' + self.dns_view
+        rest_url = "https://{self.host}/wapi/v{self.api_version}/record:host?name={host}&view={self.dns_view}".format(self=self, host=host)
 
         try:
             r = requests.get(url=rest_url, auth=(self.user, self.password), verify=False)
