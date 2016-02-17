@@ -37,22 +37,17 @@ class Infoblox(object):
         '''
 
         rest_url = "https://{self.host}/wapi/v{self.api_version}/record:host?name~={host}&view={self.dns_view}".format(self=self, host=host)
-        try:
-            r = requests.get(url=rest_url, auth=(self.user, self.password), verify=False)
-            if r.status_code == 200:
-                data = r.json()
-                if data:
-                    return data
-                elif 'text' in data:
-                    self.module.fail_json(msg=data['text'])
-                else:
-                    return False
-                    #self.module.fail_json(msg="Host %s not found" % host)
+        r = requests.get(url=rest_url, auth=(self.user, self.password), verify=False)
+        if r.status_code == 200:
+            data = r.json()
+            if data:
+                return data
+            elif 'text' in data:
+                raise Exception(data['text'])
             else:
-                r.raise_for_status()
-
-        except Exception, err:
-            self.module.fail_json(msg=str(err))
+                return False
+        else:
+            r.raise_for_status()
 
     def create_host_record(self, address, host):
         '''
@@ -69,7 +64,7 @@ class Infoblox(object):
         elif re.match("(((2(5[0-5]|[0-4][0-9])|[01]?[0-9][0-9]?)\.){3}(2(5[0-5]|[0-4][0-9])|[01]?[0-9][0-9]?))+$", address):
             ipv4addr = str(address)
         else:
-            self.module.fail_json(msg="Expected IP or NET address in CIDR format")
+            raise Exception(msg="Expected IP or NET address in CIDR format")
 
         rest_url = "https://{self.host}/wapi/v{self.api_version}/record:host?_return_fields=ipv4addrs".format(self=self)
 
@@ -78,20 +73,16 @@ class Infoblox(object):
         elif ipv4addr:
             payload = {"ipv4addrs": [{"ipv4addr":ipv4addr}],"name": host, "view":self.dns_view}
         else:
-            self.module.fail_json(msg="Error forming payload")
+            raise Exception(msg="Error forming payload")
 
-        try:
-            r = requests.post(url=rest_url, auth=(self.user, self.password), verify=False, json=payload)
-            data = r.json()
-            if r.status_code == 200 or r.status_code == 201:
-                return data
-            elif 'text' in data:
-                self.module.fail_json(msg=data['text'])
-            else:
-                r.raise_for_status()
-
-        except Exception, err:
-            self.module.fail_json(msg=str(err))
+        r = requests.post(url=rest_url, auth=(self.user, self.password), verify=False, json=payload)
+        data = r.json()
+        if r.status_code == 200 or r.status_code == 201:
+            return data
+        elif 'text' in data:
+            raise Exception(data['text'])
+        else:
+            r.raise_for_status()
 
     def delete_host_record(self, host):
         '''
@@ -100,26 +91,22 @@ class Infoblox(object):
 
         rest_url = "https://{self.host}/wapi/v{self.api_version}/record:host?name={host}&view={self.dns_view}".format(self=self, host=host)
 
-        try:
-            r = requests.get(url=rest_url, auth=(self.user, self.password), verify=False)
-            data = r.json()
-            if r.status_code == 200:
-                host_ref = data[0]['_ref']
-                if host_ref and re.match("record:host\/[^:]+:([^\/]+)\/", host_ref).group(1) == host:
-                    rest_url = 'https://' + self.host + '/wapi/v' + self.api_version + '/' + host_ref
-                    r = requests.delete(url=rest_url, auth=(self.user, self.password), verify=False)
-                    if r.status_code == 200:
-                        msg="Object %s deleted" % (host)
-                        return  msg
-                    else:
-                        r.raise_for_status()
+        r = requests.get(url=rest_url, auth=(self.user, self.password), verify=False)
+        data = r.json()
+        if r.status_code == 200:
+            host_ref = data[0]['_ref']
+            if host_ref and re.match("record:host\/[^:]+:([^\/]+)\/", host_ref).group(1) == host:
+                rest_url = 'https://' + self.host + '/wapi/v' + self.api_version + '/' + host_ref
+                r = requests.delete(url=rest_url, auth=(self.user, self.password), verify=False)
+                if r.status_code == 200:
+                    msg="Object %s deleted" % (host)
+                    return  msg
                 else:
-                    self.module.fail_json(msg="Received unexpected host reference: " + host_ref)
+                    r.raise_for_status()
             else:
-                self.module.fail_json(msg="Host not found: " + host)
-
-        except Exception, err:
-            self.module.fail_json(msg=str(err))
+                raise Exception("Received unexpected host reference: %s" % host_ref)
+        else:
+            raise Exception("Host not found: %s" % host)
 
 
 # ---------------------------------------------------------------------------
@@ -182,16 +169,16 @@ def main():
                 result = infoblox.create_host_record(address, host)
                 module.exit_json(changed=True, host_added=True, hostname=result['ipv4addrs'][0]['host'], address=result['ipv4addrs'][0]['ipv4addr'], ref=result['_ref'])
             else:
-                module.fail_json(msg="Option 'address' needed to add host")
+                raise Exception("Option 'address' needed to add a host")
         elif option == 'delete':
             result = infoblox.get_host_by_search(host)
             if result:
                 result = infoblox.delete_host_record(host)
                 module.exit_json(changed=True, hostname=host, msg=result)
             else:
-                 module.fail_json(msg="Host %s not found" % host)
+                raise Exception("Host %s not found" % host)
 
-    except Exception, err:
+    except Exception as err:
         module.fail_json(msg=str(err))
 
 from ansible.module_utils.basic import *
