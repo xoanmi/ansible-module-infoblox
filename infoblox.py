@@ -43,7 +43,7 @@ class Infoblox(object):
         Search host by FQDN in infoblox by useing rest api
         '''
 
-        return self.invoke('get', "record:host", params={'name~': host, 'view': self.dns_view})
+        return self.invoke('get', "record:host", params={'name': host, 'view': self.dns_view})
 
     def create_host_record(self, network, host):
         '''
