@@ -1,0 +1,25 @@
+---
+- hosts: localhost
+  connection: local
+  gather_facts: False
+
+  vars_prompt:
+    - name: ib_new_host
+      prompt: "Hostname to add"
+      private: no
+    - name: ib_username
+      prompt: "Username"
+      private: no
+    - name: ib_password
+      prompt: "Password"
+      private: yes
+
+  tasks:
+    - name: Add host
+      infoblox:
+        ib_server=infoblox.it.service
+        network=10.162.2016.0/23
+        option=add
+        username={{ib_username}}
+        password={{ib_password}}
+        host={{ib_new_host}}
