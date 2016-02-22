@@ -17,9 +17,30 @@
   tasks:
     - name: Add host
       infoblox:
-        ib_server=infoblox.it.service
-        network=10.162.2016.0/23
+        ib_server=192.168.1.1
+        network=192.168.1.0/24
         option=add
         username={{ib_username}}
         password={{ib_password}}
         host={{ib_new_host}}
+
+    - name: Get host data
+      infoblox:
+        ib_server=infoblox.it.service
+        option=get
+        username={{ib_username}}
+        password={{ib_password}}
+        host={{ib_new_host}}
+      register: infoblox
+
+    - name: Show Host data
+      debug: var=infoblox.result
+
+    - name: Delete host
+      infoblox:
+        ib_server=infoblox.it.service
+        option=delete
+        username={{ib_username}}
+        password={{ib_password}}
+        host={{ib_new_host}}
+
