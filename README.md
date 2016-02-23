@@ -3,7 +3,10 @@ Awesome infobox module for ansible
 
 ## Dependencies
 
-- Python "requests" module is required {pip install requests}
+- Python "requests" module is required
+```
+sudo pip install requests
+```
 
 ## Extensible Attributes
 
@@ -44,11 +47,15 @@ This gem is known to be compatible with Infoblox versions 1.0 through 2.0.  Whil
       infoblox:
         ib_server=192.168.1.1
         network=192.168.1.0/24
-        action=add
+        action=add_host
         username={{ib_username}}
         password={{ib_password}}
         host={{ib_new_host}}
 ```
+
+## To do
+- set_attribute()
+- get_attribute()
 
 ## Contributing
 
