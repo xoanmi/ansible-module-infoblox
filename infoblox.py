@@ -93,16 +93,15 @@ class Infoblox(object):
 		'''
 		return self.invoke('get', "record:host", params={'name': host, '_return_fields+' : 'extattrs' ,'view': self.dns_view})
 	
-	def create_host_record(self, network, host):
+	def create_host_record(self, host, network, address):
 		'''
 		Add host in infoblox by useing rest api
 		'''
-		if re.match("^((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)/(3[0-2]|[1-2]?[0-9])$", network):
-			pass
-		else:
-			raise Exception(msg="Expected NET address in CIDR format")
-		
-		payload = {"ipv4addrs": [{"ipv4addr": "func:nextavailableip:"+network}],"name": host, "view":self.dns_view}
+		if network:
+			payload = {"ipv4addrs": [{"ipv4addr": "func:nextavailableip:"+network}],"name": host, "view":self.dns_view}
+		elif address:
+			payload = {"name": host ,"ipv4addrs":[{"ipv4addr": address}],"view":self.dns_view}
+
 		return self.invoke('post', "record:host?_return_fields=ipv4addrs", ok_codes=(200, 201, 400), json=payload)
 	
 	def delete_host_record(self, host):
@@ -139,7 +138,8 @@ def main():
 			username    = dict(required=True),
 			password    = dict(required=True),
 			host        = dict(required=False),
-			network     = dict(required=False),
+			network     = dict(required=False, default=False),
+			address     = dict(required=False, default=False),
 			attr_name   = dict(required=False),
 			attr_value  = dict(required=False),
 			ib_server   = dict(required=False, default='192.168.0.1'),
@@ -148,7 +148,12 @@ def main():
 			net_view    = dict(required=False, default='default'),
 			action      = dict(required=False, default='get_host', choices=['get_host', 'get_network', 'get_next_available_ip', 'add_host','delete_host', 'set_extattr']),
 		),
-		required_together=['attr_name','attr_value'],
+		mutually_exclusive=[
+			['network', 'address']
+			],
+		required_together=[
+			['attr_name','attr_value']
+			],
 		supports_check_mode=True,
 	)
 	
@@ -159,6 +164,7 @@ def main():
 	password    = module.params["password"]
 	host        = module.params["host"]
 	network     = module.params["network"]
+	address     = module.params["address"]
 	attr_name   = module.params["attr_name"]
 	attr_value  = module.params["attr_value"]
 	ib_server   = module.params["ib_server"]
@@ -198,11 +204,13 @@ def main():
 				module.exit_json(host_found=False, msg="Host %s not found" % host)
 		
 		elif action == 'add_host':
-			if network:
-				result = infoblox.create_host_record(network, host)
-		        	module.exit_json(changed=True, host_added=True, result=result)
+			result = infoblox.create_host_record(host, network, address)
+			if result:
+				result = infoblox.get_host_by_name(host)
+				module.exit_json(changed=True, host_added=True, result=result)
 			else:
-				raise Exception("Option 'address' needed to add a host")
+				raise Exception("Option 'address' or 'network' are needed to add a new host")
+
 		elif action == 'delete_host':
 			result = infoblox.get_host_by_name(host)
 			if result:
