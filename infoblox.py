@@ -28,7 +28,7 @@ EXAMPLES = '''
       infoblox:
         ib_server=192.168.1.1
         network=192.168.1.0/24
-        option=add
+        action=add
         username={{ib_username}}
         password={{ib_password}}
         host={{ib_new_host}}
@@ -136,7 +136,7 @@ def main():
 			api_version = dict(required=False, default='1.7.1'),
 			dns_view    = dict(required=False, default='Private'),
 			net_view    = dict(required=False, default='default'),
-			option      = dict(required=False, default='get_host', choices=['get_host', 'get_network', 'get_next_available_ip', 'add_host','delete_host']),
+			action      = dict(required=False, default='get_host', choices=['get_host', 'get_network', 'get_next_available_ip', 'add_host','delete_host']),
 		),
 		supports_check_mode=True,
 	)
@@ -152,12 +152,12 @@ def main():
 	api_version = module.params["api_version"]
 	dns_view    = module.params["dns_view"]
 	net_view    = module.params["net_view"]
-	option      = module.params["option"]
+	action      = module.params["action"]
 	
 	try:
 		infoblox = Infoblox(module, ib_server, username, password, api_version, dns_view, net_view)
 		
-		if option == 'get_network':
+		if action == 'get_network':
 			if network:
 				result = infoblox.get_network(network)
 			    	if result:
@@ -167,7 +167,7 @@ def main():
 			else:
 				raise Exception("Option 'address' needed to get network information")
 
-		elif option == 'get_next_available_ip':
+		elif action == 'get_next_available_ip':
 			result = infoblox.get_network(network)
 			if result:
 				network_ref = result[0]['_ref']
@@ -177,20 +177,20 @@ def main():
 				else:
 					module.fail_json(msg="No vailable IPs in network: %s" % network)
 
-		elif option == 'get_host':
+		elif action == 'get_host':
 			result = infoblox.get_host_by_name(host)
 			if result:
 			 	module.exit_json(host_found=True, result=result)
 			else:
 				module.exit_json(host_found=False, msg="Host %s not found" % host)
 		
-		elif option == 'add_host':
+		elif action == 'add_host':
 			if network:
 				result = infoblox.create_host_record(network, host)
 		        	module.exit_json(changed=True, host_added=True, result=result)
 			else:
 				raise Exception("Option 'address' needed to add a host")
-		elif option == 'delete_host':
+		elif action == 'delete_host':
 			result = infoblox.get_host_by_name(host)
 			if result:
 				result = infoblox.delete_host_record(host)
