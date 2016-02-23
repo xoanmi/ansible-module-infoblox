@@ -50,6 +50,10 @@ This gem is known to be compatible with Infoblox versions 1.0 through 2.0.  Whil
         host={{ib_new_host}}
 ```
 
+## To do
+- set_attribute()
+- get_attribute()
+
 ## Contributing
 
 1. Fork it
