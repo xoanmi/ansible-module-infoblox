@@ -118,6 +118,14 @@ class Infoblox(object):
 		else:
 			raise Exception("Received unexpected host reference: %s" % host_ref)
 
+	def set_extattr(self, object_ref,  attr_name, attr_value):
+		'''
+		Update the extra attribute value
+		'''
+		payload = { "extattrs": { attr_name: { "value" : attr_value }}}
+		return self.invoke('put', object_ref, json=payload)
+
+
 # ---------------------------------------------------------------------------
 # MAIN
 # ---------------------------------------------------------------------------
@@ -132,12 +140,15 @@ def main():
 			password    = dict(required=True),
 			host        = dict(required=False),
 			network     = dict(required=False),
+			attr_name   = dict(required=False),
+			attr_value  = dict(required=False),
 			ib_server   = dict(required=False, default='192.168.0.1'),
 			api_version = dict(required=False, default='1.7.1'),
 			dns_view    = dict(required=False, default='Private'),
 			net_view    = dict(required=False, default='default'),
-			action      = dict(required=False, default='get_host', choices=['get_host', 'get_network', 'get_next_available_ip', 'add_host','delete_host']),
+			action      = dict(required=False, default='get_host', choices=['get_host', 'get_network', 'get_next_available_ip', 'add_host','delete_host', 'set_extattr']),
 		),
+		required_together=['attr_name','attr_value'],
 		supports_check_mode=True,
 	)
 	
@@ -148,6 +159,8 @@ def main():
 	password    = module.params["password"]
 	host        = module.params["host"]
 	network     = module.params["network"]
+	attr_name   = module.params["attr_name"]
+	attr_value  = module.params["attr_value"]
 	ib_server   = module.params["ib_server"]
 	api_version = module.params["api_version"]
 	dns_view    = module.params["dns_view"]
@@ -197,7 +210,18 @@ def main():
 				module.exit_json(changed=True, hostname=host, result=result)
 			else:
 				raise Exception("Host %s not found" % host)
-		
+
+		elif action == 'set_extattr':
+			result = infoblox.get_host_by_name(host)
+			if result:
+				host_ref = result[0]['_ref']
+				result = infoblox.set_extattr(host_ref, attr_name, attr_value)
+				if result:
+					module.exit_json(changed=True, result=result)
+				else:
+					raise Exception()
+
+
 	except Exception as err:
 		module.fail_json(msg=str(err))
 
