@@ -48,7 +48,7 @@ class Infoblox(object):
 	Class for manage all the REST API calls with the Infoblox appliances
 	'''
 	def __init__(self, module, ib_server, username, password, api_version, dns_view, net_view):
-
+	
 		self.module = module
 		self.dns_view = dns_view
 		self.net_view = net_view
@@ -75,8 +75,17 @@ class Infoblox(object):
 	def get_network(self, network):
 		'''
 		Search network in infoblox by useing rest api
+		Network format supported:
+			- 192.168.1.0
+			- 192.168.1.0/24
 		'''
 		return self.invoke('get', "network", params={'network' : network, 'network_view' : self.net_view})
+
+	def get_next_available_ip(self, network_ref):
+		'''
+		Return next available ip in a network range
+		'''
+		return self.invoke('post', network_ref, ok_codes=(200,), params={'_function' : 'next_available_ip'})
 
 	def get_host_by_name(self, host):
 		'''
@@ -95,7 +104,7 @@ class Infoblox(object):
 		
 		payload = {"ipv4addrs": [{"ipv4addr": "func:nextavailableip:"+network}],"name": host, "view":self.dns_view}
 		return self.invoke('post', "record:host?_return_fields=ipv4addrs", ok_codes=(200, 201, 400), json=payload)
-		
+	
 	def delete_host_record(self, host):
 		'''
 		Delete host in infoblox by useing rest api
@@ -114,77 +123,85 @@ class Infoblox(object):
 # ---------------------------------------------------------------------------
 
 def main():
-        '''
-        Ansible module to manage infoblox opeartion by useing rest api
-        '''
-        module = AnsibleModule(
-            argument_spec=dict(
-                username    = dict(required=True),
-                password    = dict(required=True),
-                host        = dict(required=False),
-                network     = dict(required=False),
-                ib_server   = dict(required=False, default='192.168.0.1'),
-                api_version = dict(required=False, default='1.7.1'),
-                dns_view    = dict(required=False, default='Private'),
-                net_view    = dict(required=False, default='default'),
-                option      = dict(required=False, default='get_host', choices=['get_host', 'get_network', 'add_host','delete_host']),
-            ),
-            supports_check_mode=True,
-        )
+	'''
+	Ansible module to manage infoblox opeartion by useing rest api
+	'''
+	module = AnsibleModule(
+		argument_spec=dict(
+			username    = dict(required=True),
+			password    = dict(required=True),
+			host        = dict(required=False),
+			network     = dict(required=False),
+			ib_server   = dict(required=False, default='192.168.0.1'),
+			api_version = dict(required=False, default='1.7.1'),
+			dns_view    = dict(required=False, default='Private'),
+			net_view    = dict(required=False, default='default'),
+			option      = dict(required=False, default='get_host', choices=['get_host', 'get_network', 'get_next_available_ip', 'add_host','delete_host']),
+		),
+		supports_check_mode=True,
+	)
+	
+	'''
+	Global vars
+	'''
+	username    = module.params["username"]
+	password    = module.params["password"]
+	host        = module.params["host"]
+	network     = module.params["network"]
+	ib_server   = module.params["ib_server"]
+	api_version = module.params["api_version"]
+	dns_view    = module.params["dns_view"]
+	net_view    = module.params["net_view"]
+	option      = module.params["option"]
+	
+	try:
+		infoblox = Infoblox(module, ib_server, username, password, api_version, dns_view, net_view)
+		
+		if option == 'get_network':
+			if network:
+				result = infoblox.get_network(network)
+			    	if result:
+			        	module.exit_json(host_found=True, result=result)
+				else:
+					module.exit_json(host_found=False, msg="Network %s not found" % network)
+			else:
+				raise Exception("Option 'address' needed to get network information")
 
-        '''
-        Global vars
-        '''
-        username    = module.params["username"]
-        password    = module.params["password"]
-        host        = module.params["host"]
-        network     = module.params["network"]
-        ib_server   = module.params["ib_server"]
-        api_version = module.params["api_version"]
-        dns_view    = module.params["dns_view"]
-        net_view        = module.params["net_view"]
-        option      = module.params["option"]
+		elif option == 'get_next_available_ip':
+			result = infoblox.get_network(network)
+			if result:
+				network_ref = result[0]['_ref']
+				result = infoblox.get_next_available_ip(network_ref)
+				if result:
+					module.exit_json(ip_available=True, result=result)
+				else:
+					module.fail_json(msg="No vailable IPs in network: %s" % network)
 
-        try:
-            infoblox = Infoblox(module, ib_server, username, password, api_version, dns_view, net_view)
-
-            if option == 'get_network':
-                if network:
-                    result = infoblox.get_network(network)
-                    if result:
-                        module.exit_json(host_found=True, result=result)
-
-                else:
-                    module.exit_json(host_found=False, msg="Network %s not found" % network)
-                #else:
-                    #    raise Exception("Option 'address' needed to get network information")
-
-            elif option == 'get_host':
-                result = infoblox.get_host_by_name(host)
-                if result:
-                    module.exit_json(host_found=True, result=result)
-
-                else:
-                    module.exit_json(host_found=False, msg="Host %s not found" % host)
-
-            elif option == 'add_host':
-                if network:
-                    result = infoblox.create_host_record(network, host)
-                    module.exit_json(changed=True, host_added=True, result=result)
-                else:
-                    raise Exception("Option 'address' needed to add a host")
-            elif option == 'delete_host':
-                result = infoblox.get_host_by_name(host)
-                if result:
-                    result = infoblox.delete_host_record(host)
-                    module.exit_json(changed=True, hostname=host, result=result)
-                else:
-                    raise Exception("Host %s not found" % host)
-
-        except Exception as err:
-            module.fail_json(msg=str(err))
+		elif option == 'get_host':
+			result = infoblox.get_host_by_name(host)
+			if result:
+			 	module.exit_json(host_found=True, result=result)
+			else:
+				module.exit_json(host_found=False, msg="Host %s not found" % host)
+		
+		elif option == 'add_host':
+			if network:
+				result = infoblox.create_host_record(network, host)
+		        	module.exit_json(changed=True, host_added=True, result=result)
+			else:
+				raise Exception("Option 'address' needed to add a host")
+		elif option == 'delete_host':
+			result = infoblox.get_host_by_name(host)
+			if result:
+				result = infoblox.delete_host_record(host)
+				module.exit_json(changed=True, hostname=host, result=result)
+			else:
+				raise Exception("Host %s not found" % host)
+		
+	except Exception as err:
+		module.fail_json(msg=str(err))
 
 from ansible.module_utils.basic import *
 
 if __name__ == "__main__":
-    main()
+	main()
