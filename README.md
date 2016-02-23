@@ -23,6 +23,7 @@ This gem is known to be compatible with Infoblox versions 1.0 through 2.0.  Whil
 - get_host [hostname]
 - add_host [hostname, network]
 - delete_host [hostname]
+- set_extattr [hostname, attirbule name, attribute value]
 
 ### Playbooke example
 ```
