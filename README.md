@@ -14,9 +14,40 @@ Extensible attributes are supported in this client.  It should be noted that in 
 This gem is known to be compatible with Infoblox versions 1.0 through 2.0.  While Infoblox claims that their API is backwards-compatible, one caveat remains with the Extensible Attributes (see elsewhere in this document).  Some features are only available in newer versions (such as FixedAddress and AAAARecord).
 
 ## Usage
+### Actions
+- get_network [network]
+- get_next_available_ip [network] 
+- get_host [hostname]
+- add_host [hostname, network]
+- delete_host [hostname]
+
 ### Playbooke example
 ```
+---
+- hosts: localhost
+  connection: local
+  gather_facts: False
 
+  vars_prompt:
+    - name: ib_new_host
+      prompt: "Hostname to add"
+      private: no
+    - name: ib_username
+      prompt: "Username"
+      private: no
+    - name: ib_password
+      prompt: "Password"
+      private: yes
+
+  tasks:
+    - name: Add host
+      infoblox:
+        ib_server=192.168.1.1
+        network=192.168.1.0/24
+        action=add
+        username={{ib_username}}
+        password={{ib_password}}
+        host={{ib_new_host}}
 ```
 
 ## Contributing
