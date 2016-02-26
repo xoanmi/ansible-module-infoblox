@@ -93,14 +93,14 @@ class Infoblox(object):
 		'''
 		return self.invoke('get', "record:host", params={'name': host, '_return_fields+' : 'extattrs' ,'view': self.dns_view})
 	
-	def create_host_record(self, host, network, address):
+	def create_host_record(self, host, network, address, comment):
 		'''
 		Add host in infoblox by useing rest api
 		'''
 		if network:
-			payload = {"ipv4addrs": [{"ipv4addr": "func:nextavailableip:"+network}],"name": host, "view":self.dns_view}
+			payload = {"ipv4addrs": [{"ipv4addr": "func:nextavailableip:"+network}],"name": host, "view":self.dns_view, "comment": comment}
 		elif address:
-			payload = {"name": host ,"ipv4addrs":[{"ipv4addr": address}],"view":self.dns_view}
+			payload = {"name": host ,"ipv4addrs":[{"ipv4addr": address}],"view":self.dns_view, "comment": comment}
 
 		return self.invoke('post', "record:host?_return_fields=ipv4addrs", ok_codes=(200, 201, 400), json=payload)
 	
@@ -142,6 +142,7 @@ def main():
 			address     = dict(required=False, default=False),
 			attr_name   = dict(required=False),
 			attr_value  = dict(required=False),
+			comment     = dict(required=False, default="Object managed by ansible-infoblox module"),
 			ib_server   = dict(required=False, default='192.168.0.1'),
 			api_version = dict(required=False, default='1.7.1'),
 			dns_view    = dict(required=False, default='Private'),
@@ -167,6 +168,7 @@ def main():
 	address     = module.params["address"]
 	attr_name   = module.params["attr_name"]
 	attr_value  = module.params["attr_value"]
+	comment     = module.params["comment"]
 	ib_server   = module.params["ib_server"]
 	api_version = module.params["api_version"]
 	dns_view    = module.params["dns_view"]
@@ -204,7 +206,7 @@ def main():
 				module.exit_json(host_found=False, msg="Host %s not found" % host)
 		
 		elif action == 'add_host':
-			result = infoblox.create_host_record(host, network, address)
+			result = infoblox.create_host_record(host, network, address, comment)
 			if result:
 				result = infoblox.get_host_by_name(host)
 				module.exit_json(changed=True, host_added=True, result=result)
