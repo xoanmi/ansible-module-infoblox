@@ -7,31 +7,27 @@ DOCUMENTATION = '''
 
 EXAMPLES = '''
 
----
-- hosts: localhost
-  connection: local
-  gather_facts: False
+ ---
+  - hosts: localhost
+     connection: local
+        gather_facts: False
 
-  vars_prompt:
-    - name: ib_new_host
-      prompt: "Hostname to add"
-      private: no
-    - name: ib_username
-      prompt: "Username"
-      private: no
-    - name: ib_password
-      prompt: "Password"
-      private: yes
+   tasks:
+   - name: Add host
+     infoblox:
+       ib_server=192.168.1.1
+       username=admin
+       password=admin
+       action=add_host
+       network=192.168.1.0/24
+       host={{ item }}
+     with_items:
+       - test01.local
+       - test02.local
+     register: infoblox
 
-  tasks:
-    - name: Add host
-      infoblox:
-        ib_server=192.168.1.1
-        network=192.168.1.0/24
-        action=add
-        username={{ib_username}}
-        password={{ib_password}}
-        host={{ib_new_host}}
+   - name: Do awesome stuff with the result
+     debug: msg="Get crazy!"
 
 '''
 
@@ -91,7 +87,7 @@ class Infoblox(object):
 		'''
 		Search host by FQDN in infoblox by useing rest api
 		'''
-		return self.invoke('get', "record:host", params={'name': host, '_return_fields+' : 'extattrs' ,'view': self.dns_view})
+		return self.invoke('get', "record:host", params={'name': host, '_return_fields+' : 'comment,extattrs' ,'view': self.dns_view})
 	
 	def create_host_record(self, host, network, address, comment):
 		'''
