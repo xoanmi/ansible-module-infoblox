@@ -3,44 +3,19 @@
   connection: local
   gather_facts: False
 
-  vars_prompt:
-    - name: ib_new_host
-      prompt: "Hostname to add"
-      private: no
-    - name: ib_username
-      prompt: "Username"
-      private: no
-    - name: ib_password
-      prompt: "Password"
-      private: yes
-
   tasks:
     - name: Add host
       infoblox:
         ib_server=192.168.1.1
+        username=admin
+        password=admin
+        action=add_host
         network=192.168.1.0/24
-        option=add
-        username={{ib_username}}
-        password={{ib_password}}
-        host={{ib_new_host}}
-
-    - name: Get host data
-      infoblox:
-        ib_server=infoblox.it.service
-        option=get
-        username={{ib_username}}
-        password={{ib_password}}
-        host={{ib_new_host}}
+        host={{ item }}
+      with_items:
+        - test01.local
+        - test02.local
       register: infoblox
 
-    - name: Show Host data
-      debug: var=infoblox.result
-
-    - name: Delete host
-      infoblox:
-        ib_server=infoblox.it.service
-        option=delete
-        username={{ib_username}}
-        password={{ib_password}}
-        host={{ib_new_host}}
-
+    - name: Do awesome stuff with the result
+      debug: msg="Go crazy!"
