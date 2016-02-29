@@ -3,38 +3,111 @@
 #
 
 DOCUMENTATION = '''
+module: infoblox
+short_description: manage Infoblox via Web API
+description:
+  - Manage Infoblox IPAM and DNS via Web API
+version_added: "1.0"
+author:
+  - "Joan Miquel Luque"
+requirements:
+  - "requests >= 2.9.1"
+options:
+  server:
+    description:
+      - Infoblox IP/URL
+    required: True
+  username:
+    description:
+      - Infoblox username
+      - The user must have API privileges
+    required: True
+  password:
+    description:
+      - Infoblox password
+    required: True
+  action:
+    description:
+      - Action to perform
+    required: True
+    choices: ['get_host', 'get_network', 'get_next_available_ip', 'add_host','delete_host', 'set_extattr']
+  host:
+    description:
+      - Hostname variable to search, add or delete host object
+      - The hostname must be in fqdn format
+    requiered: False
+  network:
+    description:
+      - Network address
+      - Must be indicated as a CDIR format or 192.168.1.0 format
+    required: False
+    default: False
+  address:
+    description:
+      - IP Address
+    required: False
+    default: False
+  attr_name:
+    description:
+      - Extra Attribute name
+    required: False
+  attr_value:
+    description:
+      - Extra Attribute value
+    required: False
+  comment:
+    description:
+      - Object comment
+      - This comment will be added when the module create any object
+    required: False
+    default: "Object managed by ansible-infoblox module"
+  api_version:
+    description:
+      - Infoblox Web API user to perfom actions
+    required: False
+    default: "1.7.1"
+  dns_view:
+    description:
+      - Infoblox DNS View
+    required: False
+    default: "Private"
+  net_view:
+    description:
+      - Infoblox Network View
+    required: False
+    default: "default":
 '''
 
 EXAMPLES = '''
+---
+ - hosts: localhost
+    connection: local
+       gather_facts: False
 
- ---
-  - hosts: localhost
-     connection: local
-        gather_facts: False
+  tasks:
+  - name: Add host
+    infoblox:
+      server=192.168.1.1
+      username=admin
+      password=admin
+      action=add_host
+      network=192.168.1.0/24
+      host={{ item }}
+    with_items:
+      - test01.local
+      - test02.local
+    register: infoblox
 
-   tasks:
-   - name: Add host
-     infoblox:
-       ib_server=192.168.1.1
-       username=admin
-       password=admin
-       action=add_host
-       network=192.168.1.0/24
-       host={{ item }}
-     with_items:
-       - test01.local
-       - test02.local
-     register: infoblox
-
-   - name: Do awesome stuff with the result
-     debug: msg="Get crazy!"
-
+  - name: Do awesome stuff with the result
+    debug: msg="Get crazy!"
 '''
 
-import json
-import re
-import requests
-requests.packages.urllib3.disable_warnings()
+try:
+	import requests
+	requests.packages.urllib3.disable_warnings()
+	HAS_REQUESTS = True
+except ImportError:
+	HAS_REQUESTS = False
 
 # ---------------------------------------------------------------------------
 # Infoblox
@@ -43,13 +116,13 @@ class Infoblox(object):
 	'''
 	Class for manage all the REST API calls with the Infoblox appliances
 	'''
-	def __init__(self, module, ib_server, username, password, api_version, dns_view, net_view):
+	def __init__(self, module, server, username, password, api_version, dns_view, net_view):
 	
 		self.module = module
 		self.dns_view = dns_view
 		self.net_view = net_view
 		self.auth = (username, password)
-		self.base_url = "https://{host}/wapi/v{version}/".format(host=ib_server, version=api_version)
+		self.base_url = "https://{host}/wapi/v{version}/".format(host=server, version=api_version)
 
 	def invoke(self, method, tail, ok_codes=(200,), **params):
 		'''
@@ -149,19 +222,19 @@ def main():
 	'''
 	module = AnsibleModule(
 		argument_spec=dict(
+			server      = dict(required=True),
 			username    = dict(required=True),
 			password    = dict(required=True),
+			action      = dict(required=True, choices=['get_host', 'get_network', 'get_next_available_ip', 'add_host','delete_host', 'set_extattr']),
 			host        = dict(required=False),
 			network     = dict(required=False, default=False),
 			address     = dict(required=False, default=False),
 			attr_name   = dict(required=False),
 			attr_value  = dict(required=False),
 			comment     = dict(required=False, default="Object managed by ansible-infoblox module"),
-			ib_server   = dict(required=False, default='192.168.0.1'),
 			api_version = dict(required=False, default='1.7.1'),
 			dns_view    = dict(required=False, default='Private'),
 			net_view    = dict(required=False, default='default'),
-			action      = dict(required=False, default='get_host', choices=['get_host', 'get_network', 'get_next_available_ip', 'add_host','delete_host', 'set_extattr']),
 		),
 		mutually_exclusive=[
 			['network', 'address']
@@ -171,26 +244,29 @@ def main():
 			],
 		supports_check_mode=True,
 	)
+
+	if not HAS_REQUESTS:
+		 module.fail_json(msg="Library 'requests' is required. Use 'sudo pip install requests' to fix it.")
 	
 	'''
 	Global vars
 	'''
+	server      = module.params["server"]
 	username    = module.params["username"]
 	password    = module.params["password"]
+	action      = module.params["action"]
 	host        = module.params["host"]
 	network     = module.params["network"]
 	address     = module.params["address"]
 	attr_name   = module.params["attr_name"]
 	attr_value  = module.params["attr_value"]
 	comment     = module.params["comment"]
-	ib_server   = module.params["ib_server"]
 	api_version = module.params["api_version"]
 	dns_view    = module.params["dns_view"]
 	net_view    = module.params["net_view"]
-	action      = module.params["action"]
 	
 	try:
-		infoblox = Infoblox(module, ib_server, username, password, api_version, dns_view, net_view)
+		infoblox = Infoblox(module, server, username, password, api_version, dns_view, net_view)
 		
 		if action == 'get_network':
 			if network:
