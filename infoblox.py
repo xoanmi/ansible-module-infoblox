@@ -68,6 +68,9 @@ class Infoblox(object):
 		else:
 			return payload
 
+	# ---------------------------------------------------------------------------
+	# get_network()
+	# ---------------------------------------------------------------------------
 	def get_network(self, network):
 		'''
 		Search network in infoblox by useing rest api
@@ -77,18 +80,27 @@ class Infoblox(object):
 		'''
 		return self.invoke('get', "network", params={'network' : network, 'network_view' : self.net_view})
 
+	# ---------------------------------------------------------------------------
+	# get_next_available_ip()
+	# ---------------------------------------------------------------------------
 	def get_next_available_ip(self, network_ref):
 		'''
 		Return next available ip in a network range
 		'''
 		return self.invoke('post', network_ref, ok_codes=(200,), params={'_function' : 'next_available_ip'})
 
+	# ---------------------------------------------------------------------------
+	# get_host_by_name()
+	# ---------------------------------------------------------------------------
 	def get_host_by_name(self, host):
 		'''
 		Search host by FQDN in infoblox by useing rest api
 		'''
 		return self.invoke('get', "record:host", params={'name': host, '_return_fields+' : 'comment,extattrs' ,'view': self.dns_view})
 	
+	# ---------------------------------------------------------------------------
+	# create_host_record()
+	# ---------------------------------------------------------------------------
 	def create_host_record(self, host, network, address, comment):
 		'''
 		Add host in infoblox by useing rest api
@@ -100,6 +112,9 @@ class Infoblox(object):
 
 		return self.invoke('post', "record:host?_return_fields=ipv4addrs", ok_codes=(200, 201, 400), json=payload)
 	
+	# ---------------------------------------------------------------------------
+	# delete_host_record()
+	# ---------------------------------------------------------------------------
 	def delete_host_record(self, host):
 		'''
 		Delete host in infoblox by useing rest api
@@ -113,6 +128,9 @@ class Infoblox(object):
 		else:
 			raise Exception("Received unexpected host reference: %s" % host_ref)
 
+	# ---------------------------------------------------------------------------
+	# set_extattr()
+	# ---------------------------------------------------------------------------
 	def set_extattr(self, object_ref,  attr_name, attr_value):
 		'''
 		Update the extra attribute value
