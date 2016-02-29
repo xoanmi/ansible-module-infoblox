@@ -27,35 +27,25 @@ This gem is known to be compatible with Infoblox versions 1.0 through 2.0.  Whil
 
 ### Playbooke example
 ```
----
 - hosts: localhost
-  connection: local
-  gather_facts: False
-
-  vars_prompt:
-    - name: ib_new_host
-      prompt: "Hostname to add"
-      private: no
-    - name: ib_username
-      prompt: "Username"
-      private: no
-    - name: ib_password
-      prompt: "Password"
-      private: yes
-
-  tasks:
-    - name: Add host
-      infoblox:
-        ib_server=192.168.1.1
-        network=192.168.1.0/24
-        action=add_host
-        username={{ib_username}}
-        password={{ib_password}}
-        host={{ib_new_host}}
+     connection: local
+        gather_facts: False
+   tasks:
+   - name: Add host
+     infoblox:
+       ib_server=192.168.1.1
+       username=admin
+       password=admin
+       action=add_host
+       network=192.168.1.0/24
+       host={{ item }}
+     with_items:
+       - test01.local
+       - test02.local
+     register: infoblox
+   - name: Do awesome stuff with the result
+     debug: msg="Get crazy!"
 ```
-
-## To do
-
 ## Contributing
 
 1. Fork it
