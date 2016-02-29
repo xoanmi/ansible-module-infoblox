@@ -44,7 +44,7 @@ This gem is known to be compatible with Infoblox versions 1.0 through 2.0.  Whil
        - test02.local
      register: infoblox
    - name: Do awesome stuff with the result
-     debug: msg="Get crazy!"
+     debug: msg="Get crazy!!"
 ```
 ## Contributing
 
