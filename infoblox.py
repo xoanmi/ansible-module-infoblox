@@ -335,8 +335,8 @@ def main():
                 else:
                     raise Exception()
 
-    except Exception as err:
-        module.fail_json(msg=str(err))
+    except Exception as e:
+        module.fail_json(msg=str(e))
 
 from ansible.module_utils.basic import *
 
