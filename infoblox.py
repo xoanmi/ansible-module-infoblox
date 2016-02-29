@@ -90,6 +90,33 @@ options:
     default: "default"
 '''
 
+RETURN = '''
+hostname:  
+  description: Hostname of the objectt
+  returned: success
+  type: str
+  sample: test1.local
+result:
+  description: result returned by the infoblox web API
+  returned: success
+  type: json
+  samble:
+    {
+      "_ref": "record:host/DSFRerZfeSDRFWEC2RzLm5hZ2lvcw:test1.local/Private",
+      "extattrs": {},
+      "ipv4addrs": [
+        {
+          "_ref": "record:host_ipv4addr/ZG5zLmhvc3RdsDFSAfwRCwrcBNyamniMIOtMOMRNsdEwLjE2Mi4yMzguMjMyLg:192.168.1.1002/test1.local/Private",
+          "configure_for_dhcp": false,
+          "host": "test1.local",
+          "ipv4addr": "192.168.1.100"
+        }
+      ],
+      "name": "test1.local",
+      "view": "Private"
+    }
+'''
+
 EXAMPLES = '''
 ---
  - hosts: localhost
@@ -298,9 +325,9 @@ def main():
             if network:
                 result = infoblox.get_network(network)
                 if result:
-                    module.exit_json(host_found=True, result=result)
+                    module.exit_json(result=result)
                 else:
-                    module.exit_json(host_found=False, msg="Network %s not found" % network)
+                    module.exit_json(msg="Network %s not found" % network)
             else:
                 raise Exception("You must specify the option 'network' or 'address'.")
 
@@ -310,22 +337,22 @@ def main():
                 network_ref = result[0]['_ref']
                 result = infoblox.get_next_available_ip(network_ref)
                 if result:
-                    module.exit_json(ip_available=True, result=result)
+                    module.exit_json(result=result)
                 else:
                     module.fail_json(msg="No vailable IPs in network: %s" % network)
 
         elif action == 'get_host':
             result = infoblox.get_host_by_name(host)
             if result:
-                module.exit_json(host_found=True, result=result)
+                module.exit_json(result=result)
             else:
-                module.exit_json(host_found=False, msg="Host %s not found" % host)
+                module.exit_json(msg="Host %s not found" % host)
 
         elif action == 'add_host':
             result = infoblox.create_host_record(host, network, address, comment)
             if result:
                 result = infoblox.get_host_by_name(host)
-                module.exit_json(changed=True, host_added=True, result=result)
+                module.exit_json(changed=True, result=result)
             else:
                 raise Exception("Option 'address' or 'network' are needed to add a new host")
 
@@ -333,7 +360,7 @@ def main():
             result = infoblox.get_host_by_name(host)
             if result:
                 result = infoblox.delete_host_record(host)
-                module.exit_json(changed=True, hostname=host, result=result)
+                module.exit_json(changed=True, result=result)
             else:
                 raise Exception("Host %s not found" % host)
 
