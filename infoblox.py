@@ -151,6 +151,8 @@ class Infoblox(object):
             - 192.168.1.0
             - 192.168.1.0/24
         '''
+        if not network:
+            self.module.exit_json(msg="You must specify the option 'network'.")
         return self.invoke('get', "network", params={'network' : network, 'network_view' : self.net_view})
 
     # ---------------------------------------------------------------------------
@@ -160,6 +162,8 @@ class Infoblox(object):
         '''
         Return next available ip in a network range
         '''
+        if not network_ref:
+            self.module.exit_json(msg="You must specify the option 'network_ref'.")
         return self.invoke('post', network_ref, ok_codes=(200,), params={'_function' : 'next_available_ip'})
 
     # ---------------------------------------------------------------------------
@@ -169,6 +173,8 @@ class Infoblox(object):
         '''
         Search host by FQDN in infoblox by useing rest api
         '''
+        if not host:
+            self.module.exit_json(msg="You must specify the option 'host'.")
         return self.invoke('get', "record:host", params={'name': host, '_return_fields+' : 'comment,extattrs' ,'view': self.dns_view})
 
     # ---------------------------------------------------------------------------
@@ -178,10 +184,14 @@ class Infoblox(object):
         '''
         Add host in infoblox by useing rest api
         '''
+        if not host:
+            self.module.exit_json(msg="You must specify the option 'host'.")
         if network:
             payload = {"ipv4addrs": [{"ipv4addr": "func:nextavailableip:"+network}],"name": host, "view":self.dns_view, "comment": comment}
         elif address:
             payload = {"name": host ,"ipv4addrs":[{"ipv4addr": address}],"view":self.dns_view, "comment": comment}
+        else:
+            raise Exception("Function options missing!")
 
         return self.invoke('post', "record:host?_return_fields=ipv4addrs", ok_codes=(200, 201, 400), json=payload)
 
@@ -192,6 +202,8 @@ class Infoblox(object):
         '''
         Delete host in infoblox by useing rest api
         '''
+        if not host:
+            self.module.exit_json(msg="You must specify the option 'host'.")
         data = self.invoke('get', "record:host", params={'name': host, 'view': self.dns_view})
         host_ref = data[0]['_ref']
         m = re.match(r"record:host/[^:]+:([^/]+)/", host_ref)
@@ -208,6 +220,8 @@ class Infoblox(object):
         '''
         Update the extra attribute value
         '''
+        if not object_reft:
+            self.module.exit_json(msg="You must specify the option 'object_red'.")
         payload = { "extattrs": { attr_name: { "value" : attr_value }}}
         return self.invoke('put', object_ref, json=payload)
 
@@ -276,7 +290,7 @@ def main():
                 else:
                     module.exit_json(host_found=False, msg="Network %s not found" % network)
             else:
-                raise Exception("Option 'address' needed to get network information")
+                raise Exception("You must specify the option 'network' or 'address'.")
 
         elif action == 'get_next_available_ip':
             result = infoblox.get_network(network)
