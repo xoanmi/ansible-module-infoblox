@@ -75,7 +75,7 @@ options:
     description:
       - Infoblox Network View
     required: False
-    default: "default":
+    default: "default"
 '''
 
 EXAMPLES = '''
@@ -334,7 +334,6 @@ def main():
                     module.exit_json(changed=True, result=result)
                 else:
                     raise Exception()
-
 
     except Exception as err:
         module.fail_json(msg=str(err))
