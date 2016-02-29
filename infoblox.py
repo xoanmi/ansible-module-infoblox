@@ -33,8 +33,13 @@ EXAMPLES = '''
 
 import json
 import re
-import requests
-requests.packages.urllib3.disable_warnings()
+
+try:
+	import requests
+	requests.packages.urllib3.disable_warnings()
+	HAS_REQUESTS = True
+except ImportError:
+	HAS_REQUESTS = False
 
 # ---------------------------------------------------------------------------
 # Infoblox
@@ -171,6 +176,9 @@ def main():
 			],
 		supports_check_mode=True,
 	)
+
+	if not HAS_REQUESTS:
+		 module.fail_json(msg="Library 'requests' is required. Use 'sudo pip install requests' to fix it.")
 	
 	'''
 	Global vars
