@@ -374,6 +374,9 @@ def main():
                 else:
                     raise Exception()
 
+    except Exception as e:
+        module.fail_json(msg=str(e))
+
 from ansible.module_utils.basic import *
 
 if __name__ == "__main__":
