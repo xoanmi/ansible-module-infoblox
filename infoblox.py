@@ -208,6 +208,17 @@ class Infoblox(object):
     # ---------------------------------------------------------------------------
     # get_host_by_name()
     # ---------------------------------------------------------------------------
+    def get_cname(self, host):
+        '''
+        Search CNAME by FQDN in infoblox by useing rest api
+        '''
+        if not host:
+            self.module.exit_json(msg="You must specify the option 'host'.")
+        return self.invoke('get', "record:cname", params={'name': host, 'view': self.dns_view})
+        
+    # ---------------------------------------------------------------------------
+    # get_host_by_name()
+    # ---------------------------------------------------------------------------
     def get_host_by_name(self, host):
         '''
         Search host by FQDN in infoblox by useing rest api
@@ -278,7 +289,7 @@ def main():
             server      = dict(required=True),
             username    = dict(required=True),
             password    = dict(required=True),
-            action      = dict(required=True, choices=['get_host', 'get_network', 'get_next_available_ip', 'add_host','delete_host', 'set_extattr']),
+            action      = dict(required=True, choices=['get_cname', 'get_host', 'get_network', 'get_next_available_ip', 'add_host','delete_host', 'set_extattr']),
             host        = dict(required=False),
             network     = dict(required=False, default=False),
             address     = dict(required=False, default=False),
@@ -340,6 +351,13 @@ def main():
                     module.exit_json(result=result)
                 else:
                     module.fail_json(msg="No vailable IPs in network: %s" % network)
+
+        elif action == 'get_cname':
+            result = infoblox.get_cname(host)
+            if result:
+                module.exit_json(result=result)
+            else:
+                module.exit_json(msg="CNAME %s not found" % host)
 
         elif action == 'get_host':
             result = infoblox.get_host_by_name(host)
