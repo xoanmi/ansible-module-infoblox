@@ -259,22 +259,15 @@ class Infoblox(object):
         return self.invoke('post', "record:host?_return_fields=ipv4addrs", ok_codes=(200, 201, 400), json=payload)
 
     # ---------------------------------------------------------------------------
-    # delete_host_record()
+    # delete_object()
     # ---------------------------------------------------------------------------
-    def delete_host_record(self, host):
+    def delete_object(self, obj_ref):
         '''
-        Delete host in infoblox by useing rest api
+        Delete object in infoblox by useing rest api
         '''
-        if not host:
-            self.module.exit_json(msg="You must specify the option 'host'.")
-        data = self.invoke('get', "record:host", params={'name': host, 'view': self.dns_view})
-        host_ref = data[0]['_ref']
-        m = re.match(r"record:host/[^:]+:([^/]+)/", host_ref)
-        if m and m.group(1) == host:
-            self.invoke('delete', host_ref)
-            return "Object %s deleted" % host
-        else:
-            raise Exception("Received unexpected host reference: %s" % host_ref)
+        if not obj_ref:
+            self.module.exit_json(msg="Object _ref required!")
+        return self.invoke('delete', obj_ref, ok_codes=(200, 404))
 
     # ---------------------------------------------------------------------------
     # set_extattr()
@@ -302,7 +295,7 @@ def main():
             server      = dict(required=True),
             username    = dict(required=True),
             password    = dict(required=True),
-            action      = dict(required=True, choices=['get_cname', 'get_host', 'get_network', 'get_next_available_ip', 'add_cname', 'add_host','delete_host', 'set_extattr']),
+            action      = dict(required=True, choices=['get_cname', 'get_host', 'get_network', 'get_next_available_ip', 'add_cname', 'add_host','delete_host', 'delete_cname', 'set_extattr']),
             host        = dict(required=False),
             network     = dict(required=False, default=False),
             address     = dict(required=False, default=False),
@@ -391,7 +384,7 @@ def main():
                 module.exit_json(changed=True, result=result)
             else:
                 raise Exception()
-        
+
         elif action == 'add_host':
             result = infoblox.create_host_record(host, network, address, comment)
             if result:
@@ -403,10 +396,18 @@ def main():
         elif action == 'delete_host':
             result = infoblox.get_host_by_name(host)
             if result:
-                result = infoblox.delete_host_record(host)
-                module.exit_json(changed=True, result=result)
+                result = infoblox.delete_object(result[0]['_ref'])
+                module.exit_json(changed=True, result=result, msg="Object {name} deleted".format(name=host))
             else:
-                raise Exception()
+                module.exit_json(msg="Host %s not found" % host)
+
+        elif action == 'delete_cname':
+            result = infoblox.get_cname(cname)
+            if result:
+                result = infoblox.delete_object(result[0]['_ref'])
+                module.exit_json(changed=True, result=result, msg="Object {name} deleted".format(name=cname))
+            else:
+                module.exit_json(msg="CNAME %s not found" % cname)
 
         elif action == 'set_extattr':
             result = infoblox.get_host_by_name(host)
