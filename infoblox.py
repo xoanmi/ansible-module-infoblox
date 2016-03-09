@@ -206,16 +206,29 @@ class Infoblox(object):
         return self.invoke('post', network_ref, ok_codes=(200,), params={'_function' : 'next_available_ip'})
 
     # ---------------------------------------------------------------------------
-    # get_host_by_name()
+    # get_cname()
     # ---------------------------------------------------------------------------
-    def get_cname(self, host):
+    def get_cname(self, cname):
         '''
         Search CNAME by FQDN in infoblox by useing rest api
         '''
-        if not host:
-            self.module.exit_json(msg="You must specify the option 'host'.")
-        return self.invoke('get', "record:cname", params={'name': host, 'view': self.dns_view})
+        if not cname:
+            self.module.exit_json(msg="You must specify the option 'cname'.")
+        return self.invoke('get', "record:cname", params={'name': cname, 'view': self.dns_view})
         
+    # ---------------------------------------------------------------------------
+    # create_cname()
+    # ---------------------------------------------------------------------------
+    def create_cname(self, cname, canonical, comment):
+        '''
+        Add CNAME in infoblox by useing rest api
+        '''
+        if not cname or not canonical:
+            self.module.exit_json(msg="You must specify the option 'name' and 'canonical'.")
+        
+        payload = {"name":cname,"canonical":canonical,"comment":comment,"view":self.dns_view}
+        return self.invoke('post', "record:cname", ok_codes=(200, 201, 400), json=payload)
+    
     # ---------------------------------------------------------------------------
     # get_host_by_name()
     # ---------------------------------------------------------------------------
@@ -289,22 +302,25 @@ def main():
             server      = dict(required=True),
             username    = dict(required=True),
             password    = dict(required=True),
-            action      = dict(required=True, choices=['get_cname', 'get_host', 'get_network', 'get_next_available_ip', 'add_host','delete_host', 'set_extattr']),
+            action      = dict(required=True, choices=['get_cname', 'get_host', 'get_network', 'get_next_available_ip', 'add_cname', 'add_host','delete_host', 'set_extattr']),
             host        = dict(required=False),
             network     = dict(required=False, default=False),
             address     = dict(required=False, default=False),
             attr_name   = dict(required=False),
             attr_value  = dict(required=False),
+            cname       = dict(required=False),
+            canonical   = dict(required=False),
             comment     = dict(required=False, default="Object managed by ansible-infoblox module"),
             api_version = dict(required=False, default='1.7.1'),
             dns_view    = dict(required=False, default='Private'),
             net_view    = dict(required=False, default='default'),
         ),
         mutually_exclusive=[
-            ['network', 'address']
+            ['network', 'address'],
+            ['host', 'cname']
             ],
         required_together=[
-            ['attr_name','attr_value']
+            ['attr_name','attr_value'],
             ],
         supports_check_mode=True,
     )
@@ -324,6 +340,8 @@ def main():
     address     = module.params["address"]
     attr_name   = module.params["attr_name"]
     attr_value  = module.params["attr_value"]
+    cname       = module.params["cname"]
+    canonical   = module.params["canonical"]
     comment     = module.params["comment"]
     api_version = module.params["api_version"]
     dns_view    = module.params["dns_view"]
@@ -353,11 +371,11 @@ def main():
                     module.fail_json(msg="No vailable IPs in network: %s" % network)
 
         elif action == 'get_cname':
-            result = infoblox.get_cname(host)
+            result = infoblox.get_cname(cname)
             if result:
                 module.exit_json(result=result)
             else:
-                module.exit_json(msg="CNAME %s not found" % host)
+                module.exit_json(msg="CNAME %s not found" % cname)
 
         elif action == 'get_host':
             result = infoblox.get_host_by_name(host)
@@ -366,13 +384,21 @@ def main():
             else:
                 module.exit_json(msg="Host %s not found" % host)
 
+        elif action == 'add_cname':
+            result = infoblox.create_cname(cname, canonical, comment)
+            if result:
+                result = infoblox.get_cname(cname)
+                module.exit_json(changed=True, result=result)
+            else:
+                raise Exception()
+        
         elif action == 'add_host':
             result = infoblox.create_host_record(host, network, address, comment)
             if result:
                 result = infoblox.get_host_by_name(host)
                 module.exit_json(changed=True, result=result)
             else:
-                raise Exception("Option 'address' or 'network' are needed to add a new host")
+                raise Exception()
 
         elif action == 'delete_host':
             result = infoblox.get_host_by_name(host)
@@ -380,7 +406,7 @@ def main():
                 result = infoblox.delete_host_record(host)
                 module.exit_json(changed=True, result=result)
             else:
-                raise Exception("Host %s not found" % host)
+                raise Exception()
 
         elif action == 'set_extattr':
             result = infoblox.get_host_by_name(host)
