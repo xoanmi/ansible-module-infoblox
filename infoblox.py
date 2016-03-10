@@ -276,8 +276,8 @@ class Infoblox(object):
         '''
         Update the extra attribute value
         '''
-        if not object_reft:
-            self.module.exit_json(msg="You must specify the option 'object_red'.")
+        if not object_ref:
+            self.module.exit_json(msg="You must specify the option 'object_ref'.")
         payload = { "extattrs": { attr_name: { "value" : attr_value }}}
         return self.invoke('put', object_ref, json=payload)
 
