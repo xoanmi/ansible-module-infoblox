@@ -151,7 +151,7 @@ class Infoblox(object):
 
     def invoke(self, method, tail, ok_codes=(200,), **params):
         '''
-        Perform the HTTPS request by useing rest api
+        Perform the HTTPS request by using rest api
         '''
         request = getattr(requests, method)
         response = request(self.base_url + tail, auth=self.auth, verify=False, **params)
@@ -171,7 +171,7 @@ class Infoblox(object):
     # ---------------------------------------------------------------------------
     def get_network(self, network):
         '''
-        Search network in infoblox by useing rest api
+        Search network in infoblox by using rest api
         Network format supported:
             - 192.168.1.0
             - 192.168.1.0/24
@@ -215,7 +215,7 @@ class Infoblox(object):
     # ---------------------------------------------------------------------------
     def get_cname(self, cname):
         '''
-        Search CNAME by FQDN in infoblox by useing rest api
+        Search CNAME by FQDN in infoblox by using rest api
         '''
         if not cname:
             self.module.exit_json(msg="You must specify the option 'cname'.")
@@ -226,7 +226,7 @@ class Infoblox(object):
     # ---------------------------------------------------------------------------
     def create_cname(self, cname, canonical, comment):
         '''
-        Add CNAME in infoblox by useing rest api
+        Add CNAME in infoblox by using rest api
         '''
         if not cname or not canonical:
             self.module.exit_json(msg="You must specify the option 'name' and 'canonical'.")
@@ -239,7 +239,7 @@ class Infoblox(object):
     # ---------------------------------------------------------------------------
     def get_host_by_name(self, host):
         '''
-        Search host by FQDN in infoblox by useing rest api
+        Search host by FQDN in infoblox by using rest api
         '''
         if not host:
             self.module.exit_json(msg="You must specify the option 'host'.")
@@ -250,7 +250,7 @@ class Infoblox(object):
     # ---------------------------------------------------------------------------
     def create_host_record(self, host, network, address, comment):
         '''
-        Add host in infoblox by useing rest api
+        Add host in infoblox by using rest api
         '''
         if not host:
             self.module.exit_json(msg="You must specify the option 'host'.")
@@ -268,7 +268,7 @@ class Infoblox(object):
     # ---------------------------------------------------------------------------
     def delete_object(self, obj_ref):
         '''
-        Delete object in infoblox by useing rest api
+        Delete object in infoblox by using rest api
         '''
         if not obj_ref:
             self.module.exit_json(msg="Object _ref required!")
@@ -282,7 +282,7 @@ class Infoblox(object):
         Update the extra attribute value
         '''
         if not object_ref:
-            self.module.exit_json(msg="You must specify the option 'object_red'.")
+            self.module.exit_json(msg="You must specify the option 'object_ref'.")
         payload = { "extattrs": { attr_name: { "value" : attr_value }}}
         return self.invoke('put', object_ref, json=payload)
 
@@ -293,7 +293,7 @@ class Infoblox(object):
 
 def main():
     '''
-    Ansible module to manage infoblox opeartion by useing rest api
+    Ansible module to manage infoblox opeartion by using rest api
     '''
     module = AnsibleModule(
         argument_spec=dict(
