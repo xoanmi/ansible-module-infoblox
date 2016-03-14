@@ -192,6 +192,25 @@ class Infoblox(object):
         return self.invoke('post', network_ref, ok_codes=(200,), params={'_function' : 'next_available_ip'})
 
     # ---------------------------------------------------------------------------
+    # reserve_next_available_ip()
+    # ---------------------------------------------------------------------------
+    def reserve_next_available_ip(self, network, mac_addr = "00:00:00:00:00:00", comment = "reserved via ansible infoblox module"):
+        '''
+        Reserve ip address via fixedaddress in infoblox by using rest api
+        '''
+        payload = {"ipv4addr": "func:nextavailableip:"+network, "mac":mac_addr, "comment": comment}
+        return self.invoke('post', "fixedaddress?_return_fields=ipv4addr", ok_codes=(200, 201, 400), json=payload)
+
+    # ---------------------------------------------------------------------------
+    # get_fixedaddress()
+    # ---------------------------------------------------------------------------
+    def get_fixedaddress(self, address):
+        '''
+        Search FIXEDADDRESS reserve by address in infoblox through the rest api
+        '''
+        return self.invoke('get', "fixedaddress", params={'ipv4addr': address})
+
+    # ---------------------------------------------------------------------------
     # get_cname()
     # ---------------------------------------------------------------------------
     def get_cname(self, cname):
@@ -263,7 +282,7 @@ class Infoblox(object):
         Update the extra attribute value
         '''
         if not object_ref:
-            self.module.exit_json(msg="You must specify the option 'object_ref'.")
+            self.module.exit_json(msg="You must specify the option 'object_red'.")
         payload = { "extattrs": { attr_name: { "value" : attr_value }}}
         return self.invoke('put', object_ref, json=payload)
 
@@ -281,7 +300,7 @@ def main():
             server      = dict(required=True),
             username    = dict(required=True),
             password    = dict(required=True),
-            action      = dict(required=True, choices=['get_cname', 'get_host', 'get_network', 'get_next_available_ip', 'add_cname', 'add_host','delete_host', 'delete_cname', 'set_extattr']),
+            action      = dict(required=True, choices=['get_cname', 'get_host', 'get_network', 'get_next_available_ip', 'get_fixedaddress', 'reserve_next_available_ip', 'add_cname', 'add_host','delete_fixedaddress', 'delete_host', 'delete_cname', 'set_extattr']),
             host        = dict(required=False),
             network     = dict(required=False, default=False),
             address     = dict(required=False, default=False),
@@ -349,6 +368,20 @@ def main():
                 else:
                     module.fail_json(msg="No vailable IPs in network: %s" % network)
 
+        elif action == 'reserve_next_available_ip':
+            result = infoblox.reserve_next_available_ip(network)
+            if result:
+                module.exit_json(changed=True, result=result)
+            else:
+                raise Exception()
+
+        elif action == 'get_fixedaddress':
+            result = infoblox.get_fixedaddress(address)
+            if result:
+                module.exit_json(result=result)
+            else:
+                module.exit_json(msg="FIXEDADDRESS %s not found" % address)
+
         elif action == 'get_cname':
             result = infoblox.get_cname(cname)
             if result:
@@ -386,6 +419,14 @@ def main():
                 module.exit_json(changed=True, result=result, msg="Object {name} deleted".format(name=host))
             else:
                 module.exit_json(msg="Host %s not found" % host)
+
+        elif action == 'delete_fixedaddress':
+            result = infoblox.get_fixedaddress(address)
+            if result:
+                result = infoblox.delete_object(result[0]['_ref'])
+                module.exit_json(changed=True, result=result, msg="Object {name} deleted".format(name=address))
+            else:
+                module.exit_json(msg="Fixedaddress %s not found" % address)
 
         elif action == 'delete_cname':
             result = infoblox.get_cname(cname)
