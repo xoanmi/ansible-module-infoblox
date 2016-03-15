@@ -151,7 +151,7 @@ class Infoblox(object):
 
     def invoke(self, method, tail, ok_codes=(200,), **params):
         '''
-        Perform the HTTPS request by useing rest api
+        Perform the HTTPS request by using rest api
         '''
         request = getattr(requests, method)
         response = request(self.base_url + tail, auth=self.auth, verify=False, **params)
@@ -171,7 +171,7 @@ class Infoblox(object):
     # ---------------------------------------------------------------------------
     def get_network(self, network):
         '''
-        Search network in infoblox by useing rest api
+        Search network in infoblox by using rest api
         Network format supported:
             - 192.168.1.0
             - 192.168.1.0/24
@@ -192,11 +192,30 @@ class Infoblox(object):
         return self.invoke('post', network_ref, ok_codes=(200,), params={'_function' : 'next_available_ip'})
 
     # ---------------------------------------------------------------------------
+    # reserve_next_available_ip()
+    # ---------------------------------------------------------------------------
+    def reserve_next_available_ip(self, network, mac_addr = "00:00:00:00:00:00", comment = "reserved via ansible infoblox module"):
+        '''
+        Reserve ip address via fixedaddress in infoblox by using rest api
+        '''
+        payload = {"ipv4addr": "func:nextavailableip:"+network, "mac":mac_addr, "comment": comment}
+        return self.invoke('post', "fixedaddress?_return_fields=ipv4addr", ok_codes=(200, 201, 400), json=payload)
+
+    # ---------------------------------------------------------------------------
+    # get_fixedaddress()
+    # ---------------------------------------------------------------------------
+    def get_fixedaddress(self, address):
+        '''
+        Search FIXEDADDRESS reserve by address in infoblox through the rest api
+        '''
+        return self.invoke('get', "fixedaddress", params={'ipv4addr': address})
+
+    # ---------------------------------------------------------------------------
     # get_cname()
     # ---------------------------------------------------------------------------
     def get_cname(self, cname):
         '''
-        Search CNAME by FQDN in infoblox by useing rest api
+        Search CNAME by FQDN in infoblox by using rest api
         '''
         if not cname:
             self.module.exit_json(msg="You must specify the option 'cname'.")
@@ -207,7 +226,7 @@ class Infoblox(object):
     # ---------------------------------------------------------------------------
     def create_cname(self, cname, canonical, comment):
         '''
-        Add CNAME in infoblox by useing rest api
+        Add CNAME in infoblox by using rest api
         '''
         if not cname or not canonical:
             self.module.exit_json(msg="You must specify the option 'name' and 'canonical'.")
@@ -220,7 +239,7 @@ class Infoblox(object):
     # ---------------------------------------------------------------------------
     def get_host_by_name(self, host):
         '''
-        Search host by FQDN in infoblox by useing rest api
+        Search host by FQDN in infoblox by using rest api
         '''
         if not host:
             self.module.exit_json(msg="You must specify the option 'host'.")
@@ -231,7 +250,7 @@ class Infoblox(object):
     # ---------------------------------------------------------------------------
     def create_host_record(self, host, network, address, comment):
         '''
-        Add host in infoblox by useing rest api
+        Add host in infoblox by using rest api
         '''
         if not host:
             self.module.exit_json(msg="You must specify the option 'host'.")
@@ -249,7 +268,7 @@ class Infoblox(object):
     # ---------------------------------------------------------------------------
     def delete_object(self, obj_ref):
         '''
-        Delete object in infoblox by useing rest api
+        Delete object in infoblox by using rest api
         '''
         if not obj_ref:
             self.module.exit_json(msg="Object _ref required!")
@@ -274,14 +293,14 @@ class Infoblox(object):
 
 def main():
     '''
-    Ansible module to manage infoblox opeartion by useing rest api
+    Ansible module to manage infoblox opeartion by using rest api
     '''
     module = AnsibleModule(
         argument_spec=dict(
             server      = dict(required=True),
             username    = dict(required=True),
             password    = dict(required=True),
-            action      = dict(required=True, choices=['get_cname', 'get_host', 'get_network', 'get_next_available_ip', 'add_cname', 'add_host','delete_host', 'delete_cname', 'set_extattr']),
+            action      = dict(required=True, choices=['get_cname', 'get_host', 'get_network', 'get_next_available_ip', 'get_fixedaddress', 'reserve_next_available_ip', 'add_cname', 'add_host','delete_fixedaddress', 'delete_host', 'delete_cname', 'set_extattr']),
             host        = dict(required=False),
             network     = dict(required=False, default=False),
             address     = dict(required=False, default=False),
@@ -349,6 +368,20 @@ def main():
                 else:
                     module.fail_json(msg="No vailable IPs in network: %s" % network)
 
+        elif action == 'reserve_next_available_ip':
+            result = infoblox.reserve_next_available_ip(network)
+            if result:
+                module.exit_json(changed=True, result=result)
+            else:
+                raise Exception()
+
+        elif action == 'get_fixedaddress':
+            result = infoblox.get_fixedaddress(address)
+            if result:
+                module.exit_json(result=result)
+            else:
+                module.exit_json(msg="FIXEDADDRESS %s not found" % address)
+
         elif action == 'get_cname':
             result = infoblox.get_cname(cname)
             if result:
@@ -386,6 +419,14 @@ def main():
                 module.exit_json(changed=True, result=result, msg="Object {name} deleted".format(name=host))
             else:
                 module.exit_json(msg="Host %s not found" % host)
+
+        elif action == 'delete_fixedaddress':
+            result = infoblox.get_fixedaddress(address)
+            if result:
+                result = infoblox.delete_object(result[0]['_ref'])
+                module.exit_json(changed=True, result=result, msg="Object {name} deleted".format(name=address))
+            else:
+                module.exit_json(msg="Fixedaddress %s not found" % address)
 
         elif action == 'delete_cname':
             result = infoblox.get_cname(cname)
