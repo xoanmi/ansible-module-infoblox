@@ -275,6 +275,18 @@ class Infoblox(object):
         return self.invoke('delete', obj_ref, ok_codes=(200, 404))
 
     # ---------------------------------------------------------------------------
+    # set_name()
+    # ---------------------------------------------------------------------------
+    def set_name(self, object_ref,  name):
+        '''
+        Update the name of a object
+        '''
+        if not object_ref:
+            self.module.exit_json(msg="You must specify the option 'object_ref'.")
+        payload = { "name": name}
+        return self.invoke('put', object_ref, json=payload)
+    
+    # ---------------------------------------------------------------------------
     # set_extattr()
     # ---------------------------------------------------------------------------
     def set_extattr(self, object_ref,  attr_name, attr_value):
@@ -300,8 +312,9 @@ def main():
             server      = dict(required=True),
             username    = dict(required=True),
             password    = dict(required=True),
-            action      = dict(required=True, choices=['get_cname', 'get_host', 'get_network', 'get_next_available_ip', 'get_fixedaddress', 'reserve_next_available_ip', 'add_cname', 'add_host','delete_fixedaddress', 'delete_host', 'delete_cname', 'set_extattr']),
+            action      = dict(required=True, choices=['get_cname', 'get_host', 'get_network', 'get_next_available_ip', 'get_fixedaddress', 'reserve_next_available_ip', 'add_cname', 'add_host','delete_fixedaddress', 'delete_host', 'delete_cname', 'set_name', 'set_extattr']),
             host        = dict(required=False),
+            name        = dict(required=False),
             network     = dict(required=False),
             address     = dict(required=False),
             attr_name   = dict(required=False),
@@ -334,6 +347,7 @@ def main():
     password    = module.params["password"]
     action      = module.params["action"]
     host        = module.params["host"]
+    name        = module.params["name"]
     network     = module.params["network"]
     address     = module.params["address"]
     attr_name   = module.params["attr_name"]
@@ -436,6 +450,16 @@ def main():
             else:
                 module.exit_json(msg="CNAME %s not found" % cname)
 
+        elif action == 'set_name':
+            result = infoblox.get_host_by_name(host)
+            if result:
+                host_ref = result[0]['_ref']
+                result = infoblox.set_name(host_ref, name)
+                if result:
+                    module.exit_json(changed=True, result=result)
+                else:
+                    raise Exception()
+        
         elif action == 'set_extattr':
             result = infoblox.get_host_by_name(host)
             if result:
