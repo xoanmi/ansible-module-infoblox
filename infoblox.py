@@ -315,6 +315,7 @@ def main():
             action      = dict(required=True, choices=['get_cname', 'get_host', 'get_network', 'get_next_available_ip', 'get_fixedaddress', 'reserve_next_available_ip', 'add_cname', 'add_host','delete_fixedaddress', 'delete_host', 'delete_cname', 'set_name', 'set_extattr']),
             host        = dict(required=False),
             name        = dict(required=False),
+            object_ref  = dict(required=False),
             network     = dict(required=False),
             address     = dict(required=False),
             attr_name   = dict(required=False),
@@ -332,6 +333,7 @@ def main():
             ],
         required_together=[
             ['attr_name','attr_value'],
+            ['object_ref', 'name']
             ],
         supports_check_mode=True,
     )
@@ -348,6 +350,7 @@ def main():
     action      = module.params["action"]
     host        = module.params["host"]
     name        = module.params["name"]
+    object_ref  = module.params["object_ref"]
     network     = module.params["network"]
     address     = module.params["address"]
     attr_name   = module.params["attr_name"]
@@ -451,15 +454,12 @@ def main():
                 module.exit_json(msg="CNAME %s not found" % cname)
 
         elif action == 'set_name':
-            result = infoblox.get_host_by_name(host)
+            result = infoblox.set_name(object_ref, name)
             if result:
-                host_ref = result[0]['_ref']
-                result = infoblox.set_name(host_ref, name)
-                if result:
-                    module.exit_json(changed=True, result=result)
-                else:
-                    raise Exception()
-        
+                module.exit_json(changed=True, result=result)
+            else:
+                raise Exception()
+
         elif action == 'set_extattr':
             result = infoblox.get_host_by_name(host)
             if result:
