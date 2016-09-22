@@ -33,7 +33,7 @@ This gem is known to be compatible with Infoblox versions 1.0 through 2.0.  Whil
    tasks:
    - name: Add host
      infoblox:
-       ib_server=192.168.1.1
+       server=192.168.1.1
        username=admin
        password=admin
        action=add_host
