@@ -14,7 +14,7 @@ Extensible attributes are supported in this client.  It should be noted that in 
 
 ## Infoblox Version Compatibility
 
-This gem is known to be compatible with Infoblox versions 1.0 through 2.0.  While Infoblox claims that their API is backwards-compatible, one caveat remains with the Extensible Attributes (see elsewhere in this document).  Some features are only available in newer versions (such as FixedAddress and AAAARecord).
+This gem is known to be compatible with Infoblox versions 1.0 through 2.3.  While Infoblox claims that their API is backwards-compatible, one caveat remains with the Extensible Attributes (see elsewhere in this document).  Some features are only available in newer versions (such as FixedAddress and AAAARecord).
 
 ## Usage
 ### Actions
