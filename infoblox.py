@@ -194,7 +194,7 @@ class Infoblox(object):
     # ---------------------------------------------------------------------------
     # reserve_next_available_ip()
     # ---------------------------------------------------------------------------
-    def reserve_next_available_ip(self, network, mac_addr = "00:00:00:00:00:00", comment = "reserved via ansible infoblox module"):
+    def reserve_next_available_ip(self, network, mac_addr = "00:00:00:00:00:00", comment = "IP reserved via ansible infoblox module"):
         '''
         Reserve ip address via fixedaddress in infoblox by using rest api
         '''
@@ -234,6 +234,28 @@ class Infoblox(object):
         payload = {"name":cname,"canonical":canonical,"comment":comment,"view":self.dns_view}
         return self.invoke('post', "record:cname", ok_codes=(200, 201, 400), json=payload)
     
+    # ---------------------------------------------------------------------------
+    # get_aliases()
+    # ---------------------------------------------------------------------------
+    def get_aliases(self, host):
+        '''
+        Get all the aliases on a host
+        '''
+        if not host:
+            self.module.exit_json(msg="You must specify the option 'host'.")
+        return self.invoke('get', "record:host?_return_fields%2B=aliases", params={'name': host, 'view': self.dns_view})
+
+    # ---------------------------------------------------------------------------
+    # update_host_alias()
+    # ---------------------------------------------------------------------------
+    def update_host_alias(self, object_ref, alias):
+        '''
+        Update alias for a host
+        '''
+        if not object_ref:
+            self.module.exit_json(msg="Object _ref required!")
+        return self.invoke('put', object_ref, json=alias)
+
     # ---------------------------------------------------------------------------
     # get_host_by_name()
     # ---------------------------------------------------------------------------
@@ -277,13 +299,13 @@ class Infoblox(object):
     # ---------------------------------------------------------------------------
     # set_name()
     # ---------------------------------------------------------------------------
-    def set_name(self, object_ref,  name):
+    def set_name(self, object_ref, name):
         '''
         Update the name of a object
         '''
         if not object_ref:
             self.module.exit_json(msg="You must specify the option 'object_ref'.")
-        payload = { "name": name}
+        payload = { "name": name }
         return self.invoke('put', object_ref, json=payload)
     
     # ---------------------------------------------------------------------------
@@ -312,12 +334,13 @@ def main():
             server      = dict(required=True),
             username    = dict(required=True),
             password    = dict(required=True),
-            action      = dict(required=True, choices=['get_cname', 'get_host', 'get_network', 'get_next_available_ip', 'get_fixedaddress', 'reserve_next_available_ip', 'add_cname', 'add_host','delete_fixedaddress', 'delete_host', 'delete_cname', 'set_name', 'set_extattr']),
+            action      = dict(required=True, choices=['get_aliases', 'get_cname', 'get_host', 'get_network', 'get_next_available_ip', 'get_fixedaddress', 'reserve_next_available_ip', 'add_alias', 'add_cname', 'add_host', 'delete_alias', 'delete_fixedaddress', 'delete_host', 'delete_cname', 'set_name', 'set_extattr']),
             host        = dict(required=False),
-            name        = dict(required=False),
-            object_ref  = dict(required=False),
             network     = dict(required=False),
+            object_ref  = dict(required=False),
+            name        = dict(required=False),
             address     = dict(required=False),
+            alias       = dict(required=False),
             attr_name   = dict(required=False),
             attr_value  = dict(required=False),
             cname       = dict(required=False),
@@ -333,7 +356,7 @@ def main():
             ],
         required_together=[
             ['attr_name','attr_value'],
-            ['object_ref', 'name']
+            ['object_ref','name']
             ],
         supports_check_mode=True,
     )
@@ -349,10 +372,11 @@ def main():
     password    = module.params["password"]
     action      = module.params["action"]
     host        = module.params["host"]
-    name        = module.params["name"]
     object_ref  = module.params["object_ref"]
+    name        = module.params["name"]
     network     = module.params["network"]
     address     = module.params["address"]
+    alias       = module.params["alias"]
     attr_name   = module.params["attr_name"]
     attr_value  = module.params["attr_value"]
     cname       = module.params["cname"]
@@ -399,6 +423,16 @@ def main():
             else:
                 module.exit_json(msg="FIXEDADDRESS %s not found" % address)
 
+        elif action == 'get_aliases':
+            result = infoblox.get_aliases(host)
+            if result:
+                if 'aliases' in result[0]:
+                    module.exit_json(result=result[0]['aliases'])
+                else:
+                    module.exit_json(msg="Aliases not found for host %s" % host)
+            else:
+                module.exit_json(msg="Host %s not found" % host)
+        
         elif action == 'get_cname':
             result = infoblox.get_cname(cname)
             if result:
@@ -410,6 +444,25 @@ def main():
             result = infoblox.get_host_by_name(host)
             if result:
                 module.exit_json(result=result)
+            else:
+                module.exit_json(msg="Host %s not found" % host)
+
+        elif action == 'add_alias' :
+            result = infoblox.get_aliases(host)
+            if result:
+                object_ref = result[0]['_ref']
+                aliases = {}
+                if 'aliases' in result[0]:
+                    alias_list = result[0]['aliases']
+                else:
+                    alias_list = []
+                alias_list.append(alias)
+                aliases['aliases'] = alias_list
+                result = infoblox.update_host_alias(object_ref, aliases)
+                if result:
+                    module.exit_json(changed=True, result=result)
+                else:
+                    raise Exception()
             else:
                 module.exit_json(msg="Host %s not found" % host)
 
@@ -428,6 +481,25 @@ def main():
                 module.exit_json(changed=True, result=result)
             else:
                 raise Exception()
+
+        elif action == 'delete_alias':
+            result = infoblox.get_aliases(host)
+            if result:
+                if 'aliases' in result[0]:
+                    object_ref = result[0]['_ref']
+                    alias_list = result[0]['aliases']
+                    alias_list.remove(alias)
+                    aliases = {}
+                    aliases['aliases'] = alias_list
+                    result = infoblox.update_host_alias(object_ref, aliases)
+                    if result:
+                        module.exit_json(changed=True, result=result)
+                    else:
+                        raise Exception()
+                else:
+                    module.exit_json(msg="No aliases found in Host %s" % host)                    
+            else:
+                module.exit_json(msg="Host %s not found" % host)
 
         elif action == 'delete_host':
             result = infoblox.get_host_by_name(host)
