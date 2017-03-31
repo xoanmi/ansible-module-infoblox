@@ -514,6 +514,19 @@ def main():
                 raise Exception()
 
         elif action == 'add_a_record':
+            # Ensures idempotence
+            a_records = infoblox.get_a_record(name)
+            if len(a_records) > 0:
+                assert len(a_records) == 1
+                a_record = a_records[0]
+                existing_address = a_record["ipv4addr"]
+                if existing_address != address:
+                    module.fail_json(
+                        msg="Cannot create new A record named %s, pointing to %s, because a record with the same name "
+                            "already exists, pointing to %s." % (name, address, existing_address))
+                else:
+                    module.exit_json(changed=False, result=a_record)
+
             result = infoblox.create_a_record(name, address, comment)
             if result:
                 result = infoblox.get_a_record(name)
