@@ -363,7 +363,7 @@ def main():
             password    = dict(required=True),
             action      = dict(required=True, choices=[
                 'get_aliases', 'get_cname', 'get_a_record', 'get_host', 'get_network', 'get_next_available_ip',
-                'get_fixedaddress', 'reserve_next_available_ip', 'add_alias', 'add_cname', 'add_a_record', 'add_host',
+                'get_fixedaddress', 'reserve_next_available_ip', 'add_alias', 'add_cname', 'set_a_record', 'add_host',
                 'delete_alias', 'delete_fixedaddress', 'delete_host', 'delete_cname', 'delete_a_record', 'set_name',
                 'set_extattr'
             ]),
@@ -513,7 +513,7 @@ def main():
             else:
                 raise Exception()
 
-        elif action == 'add_a_record':
+        elif action == 'set_a_record':
             # Ensures idempotence
             a_records = infoblox.get_a_record(name)
             if len(a_records) > 0:
@@ -521,9 +521,8 @@ def main():
                 a_record = a_records[0]
                 existing_address = a_record["ipv4addr"]
                 if existing_address != address:
-                    module.fail_json(
-                        msg="Cannot create new A record named %s, pointing to %s, because a record with the same name "
-                            "already exists, pointing to %s." % (name, address, existing_address))
+                    # Remove existing record
+                    infoblox.delete_object(a_record['_ref'])
                 else:
                     module.exit_json(changed=False, result=a_record)
 

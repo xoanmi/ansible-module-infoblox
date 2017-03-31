@@ -25,7 +25,7 @@ This gem is known to be compatible with Infoblox versions 1.0 through 2.3.  Whil
 - delete_host [hostname]
 - set_extattr [hostname, attirbule name, attribute value]
 - get_a_record [name]
-- add_a_record [name, address]
+- set_a_record [name, address] (this will change an existing record if it exists)
 - delete_a_record [name]
 
 ### Playbooke example
