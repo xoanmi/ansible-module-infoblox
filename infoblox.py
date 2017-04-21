@@ -45,6 +45,11 @@ options:
       - IP Address
     required: False
     default: False
+  addresses:
+    description:
+      - IP Addresses
+    required: False
+    default: False
   attr_name:
     description:
       - Extra Attribute name
@@ -372,6 +377,7 @@ def main():
             object_ref  = dict(required=False),
             name        = dict(required=False),
             address     = dict(required=False),
+            addresses=dict(required=False, type="list"),
             alias       = dict(required=False),
             attr_name   = dict(required=False),
             attr_value  = dict(required=False),
@@ -408,6 +414,7 @@ def main():
     name        = module.params["name"]
     network     = module.params["network"]
     address     = module.params["address"]
+    addresses   = module.params["addresses"]
     alias       = module.params["alias"]
     attr_name   = module.params["attr_name"]
     attr_value  = module.params["attr_value"]
@@ -514,24 +521,28 @@ def main():
                 raise Exception()
 
         elif action == 'set_a_record':
-            # Ensures idempotence
+            if address:
+                if addresses:
+                    module.fail_json(msg="Either specify `address` or `addresses`, not both")
+                addresses = [address]
+            addresses = set(addresses)
+
+            correct_existing_addresses = set()
             a_records = infoblox.get_a_record(name)
-            if len(a_records) > 0:
-                assert len(a_records) == 1
-                a_record = a_records[0]
+            for a_record in a_records:
                 existing_address = a_record["ipv4addr"]
-                if existing_address != address:
-                    # Remove existing record
+                if not existing_address in addresses:
                     infoblox.delete_object(a_record['_ref'])
                 else:
-                    module.exit_json(changed=False, result=a_record)
+                    correct_existing_addresses.add(existing_address)
 
-            result = infoblox.create_a_record(name, address, comment)
-            if result:
-                result = infoblox.get_a_record(name)
-                module.exit_json(changed=True, result=result)
+            addresses_to_add = addresses - correct_existing_addresses
+            if len(addresses_to_add) == 0:
+                module.exit_json(changed=False, result=a_records)
             else:
-                raise Exception()
+                for address in addresses_to_add:
+                    infoblox.create_a_record(name, address, comment)
+                module.exit_json(changed=True, result=infoblox.get_a_record(name))
 
         elif action == 'add_host':
             result = infoblox.create_host_record(host, network, address, comment)
