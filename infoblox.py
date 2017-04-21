@@ -45,6 +45,11 @@ options:
       - IP Address
     required: False
     default: False
+  addresses:
+    description:
+      - IP Addresses
+    required: False
+    default: False
   attr_name:
     description:
       - Extra Attribute name
