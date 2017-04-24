@@ -370,7 +370,7 @@ def main():
         argument_spec=dict(
             server=dict(required=True),
             username=dict(required=True),
-            password=dict(required=True),
+            password=dict(required=True, no_log=True),
             action=dict(required=True, choices=[
                 "get_aliases", "get_cname", "get_a_record", "get_host", "get_network", "get_next_available_ip",
                 "get_fixedaddress", "reserve_next_available_ip", "add_alias", "add_cname", "set_a_record", "add_host",
