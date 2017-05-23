@@ -1,4 +1,15 @@
 #!/usr/bin/python
+from copy import copy
+
+from ansible.module_utils.basic import *
+
+try:
+    import requests
+    requests.packages.urllib3.disable_warnings()
+    HAS_REQUESTS = True
+except ImportError:
+    HAS_REQUESTS = False
+
 
 DOCUMENTATION = """
 module: infoblox
@@ -81,7 +92,7 @@ options:
     default: "default"
   ttl:
     description:
-      - DNS time-to-liv
+      - DNS time-to-live
     required: False
     default: None
 """
@@ -136,15 +147,6 @@ EXAMPLES = """
   - name: Do awesome stuff with the result
     debug: msg="Get crazy!"
 """
-
-from ansible.module_utils.basic import *
-try:
-    import requests
-
-    requests.packages.urllib3.disable_warnings()
-    HAS_REQUESTS = True
-except ImportError:
-    HAS_REQUESTS = False
 
 _COMMENT_PROPERTY = "comment"
 _TTL_PROPERTY = "ttl"
@@ -277,38 +279,14 @@ class Infoblox(object):
         """
         Creates an A record with the given name that points to the given IP address.
 
-        If `ttl` is `None`, the record will inherit its TTL value. If set to `0`, it indicates that the record should
-        not be cached.
-
         For documentation on how to use the related part of the InfoBlox WAPI, refer to:
         https://ipam.illinois.edu/wapidoc/objects/record.a.html
         """
         if not name or not address:
             self.module.exit_json(msg="You must specify the option 'name' and 'address'.")
 
-        model = self._create_a_record_model( name, address, comment, ttl)
+        model = _create_a_record_model(name, address, self.dns_view, comment, ttl)
         return self.invoke("post", "record:a", ok_codes=(200, 201, 400), json=model)
-
-    def _create_a_record_model(self, name, address, comment, ttl=None):
-        """
-        Creates a JSON model of an A record with the given properties, using the same keys as used by the WAPI.
-        :param name: the domain name
-        :param address: the IP address of the record
-        :param comment: an associated comment
-        :param ttl: the TTL in seconds or `None` if the TTL is to be inherited
-        :return: the created model
-        """
-        model = {
-            _NAME_PROPERTY: name,
-            _IPV4_ADDRESS_PROPERTY: address,
-            _COMMENT_PROPERTY: comment,
-            _VIEW_PROPERTY: self.dns_view,
-            _USE_TTL_PROPERTY: ttl is not None
-        }
-        if ttl is not None:
-            model[_TTL_PROPERTY] = int(ttl)
-        return model
-
 
     # ---------------------------------------------------------------------------
     # get_aliases()
@@ -397,6 +375,50 @@ class Infoblox(object):
             self.module.exit_json(msg="You must specify the option 'object_ref''.")
         payload = {"extattrs": {attr_name: {"value": attr_value}}}
         return self.invoke("put", object_ref, json=payload)
+
+
+def _create_a_record_model(name, address, view, comment, ttl=None):
+    """
+    Creates a JSON model of an A record with the given properties, using the same keys as used by the WAPI.
+    :param name: the domain name
+    :param address: the IP address of the record
+    :param view: the DNS view
+    :param comment: an associated comment
+    :param ttl: the TTL in seconds or `None` if the TTL is to be inherited
+    :return: the created model
+    """
+    model = {
+        _NAME_PROPERTY: name,
+        _IPV4_ADDRESS_PROPERTY: address,
+        _COMMENT_PROPERTY: comment,
+        _VIEW_PROPERTY: view,
+        _USE_TTL_PROPERTY: ttl is not None
+    }
+    if ttl is not None:
+        model[_TTL_PROPERTY] = int(ttl)
+    return model
+
+
+def _are_records_equivalent(a_record_1, a_record_2):
+    """
+    Checks whether the given records are equivalent (ignoring irrelevant properties).
+    :param a_record_1: first A record
+    :param a_record_2: second A record
+    :return: whether the records are equivalent
+    """
+    a_record_1 = copy(a_record_1)
+    a_record_2 = copy(a_record_2)
+
+    ignore_properties = {_ID_PROPERTY}
+    if not (a_record_1.get(_USE_TTL_PROPERTY, True) or a_record_2.get(_USE_TTL_PROPERTY, True)):
+        # Not using TTL property therefore we don't care what the TTL value is
+        ignore_properties.add(_TTL_PROPERTY)
+
+    for property in ignore_properties:
+        for a_record in [a_record_1, a_record_2]:
+            a_record.pop(property, None)
+
+    return a_record_1 == a_record_2
 
 
 # ---------------------------------------------------------------------------
@@ -577,7 +599,7 @@ def main():
             addresses = set(addresses)
 
             a_records = infoblox.get_a_record(name)
-            desired_a_records = {address: infoblox._create_a_record_model(name, address, comment, ttl)
+            desired_a_records = {address: _create_a_record_model(name, address, infoblox.dns_view, comment, ttl)
                                  for address in addresses}
 
             a_records_to_delete = []
@@ -589,15 +611,10 @@ def main():
                 if address not in addresses:
                     a_records_to_delete.append(a_record)
                 else:
-                    desired_a_record = desired_a_records[address]
-                    for key, value in desired_a_record.items():
-                        if key == _TTL_PROPERTY and not desired_a_record[_USE_TTL_PROPERTY]:
-                            # Not using TTL property therefore we don't care what the TTL value is
-                            continue
-                        if a_record[key] != value:
-                            a_records_to_update.append(a_record)
-                            break
-                    a_records_to_leave.append(a_record)
+                    if _are_records_equivalent(desired_a_records[address], a_record):
+                        a_records_to_leave.append(a_record)
+                    else:
+                        a_records_to_update.append(a_record)
 
             # Note: being lazy and doing an update using a delete + create
             for a_record in a_records_to_delete + a_records_to_update:
@@ -611,7 +628,14 @@ def main():
             else:
                 for address in addresses_of_a_records_to_create:
                     infoblox.create_a_record(name, address, comment, ttl)
-                module.exit_json(changed=True, result=infoblox.get_a_record(name))
+
+                # Validation
+                set_a_records = infoblox.get_a_record(name)
+                assert len(set_a_records) == len(addresses) == len(desired_a_records)
+                for a_record in set_a_records:
+                    assert _are_records_equivalent(desired_a_records[a_record[_IPV4_ADDRESS_PROPERTY]], a_record)
+
+                module.exit_json(changed=True, result=set_a_records)
 
         elif action == "add_host":
             result = infoblox.create_host_record(host, network, address, comment)
