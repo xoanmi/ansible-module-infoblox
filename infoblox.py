@@ -79,6 +79,11 @@ options:
       - Infoblox Network View
     required: False
     default: "default"
+  ttl:
+    description:
+      - DNS time-to-liv
+    required: False
+    default: None
 """
 
 RETURN = """
@@ -256,9 +261,12 @@ class Infoblox(object):
     # ---------------------------------------------------------------------------
     # create_a_record()
     # ---------------------------------------------------------------------------
-    def create_a_record(self, name, address, comment):
+    def create_a_record(self, name, address, comment, ttl=None):
         """
         Creates an A record with the given name that points to the given IP address.
+
+        If `ttl` is `None`, the record will inherit its TTL value. If set to `0`, it indicates that the record should
+        not be cached.
 
         For documentation on how to use the related part of the InfoBlox WAPI, refer to:
         https://ipam.illinois.edu/wapidoc/objects/record.a.html
@@ -267,6 +275,11 @@ class Infoblox(object):
             self.module.exit_json(msg="You must specify the option 'name' and 'address'.")
 
         payload = {"name": name, "ipv4addr": address, "comment": comment, "view": self.dns_view}
+
+        if ttl is not None:
+            payload["ttl"] = int(ttl)
+            payload["use_ttl"] = True
+
         return self.invoke("post", "record:a", ok_codes=(200, 201, 400), json=payload)
 
     # ---------------------------------------------------------------------------
@@ -392,6 +405,7 @@ def main():
             api_version=dict(required=False, default="1.7.1"),
             dns_view=dict(required=False, default="Private"),
             net_view=dict(required=False, default="default"),
+            ttl=dict(required=False)
         ),
         mutually_exclusive=[
             ["network", "address"],
@@ -429,6 +443,7 @@ def main():
     api_version = module.params["api_version"]
     dns_view = module.params["dns_view"]
     net_view = module.params["net_view"]
+    ttl = module.params["ttl"]
 
     try:
         infoblox = Infoblox(module, server, username, password, api_version, dns_view, net_view)
@@ -546,7 +561,7 @@ def main():
                 module.exit_json(changed=False, result=a_records)
             else:
                 for address in addresses_to_add:
-                    infoblox.create_a_record(name, address, comment)
+                    infoblox.create_a_record(name, address, comment, ttl)
                 module.exit_json(changed=True, result=infoblox.get_a_record(name))
 
         elif action == "add_host":
