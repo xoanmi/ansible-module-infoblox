@@ -1,4 +1,15 @@
 #!/usr/bin/python
+from copy import copy
+
+from ansible.module_utils.basic import *
+
+try:
+    import requests
+    requests.packages.urllib3.disable_warnings()
+    HAS_REQUESTS = True
+except ImportError:
+    HAS_REQUESTS = False
+
 
 DOCUMENTATION = """
 module: infoblox
@@ -79,6 +90,11 @@ options:
       - Infoblox Network View
     required: False
     default: "default"
+  ttl:
+    description:
+      - DNS time-to-live
+    required: False
+    default: None
 """
 
 RETURN = """
@@ -132,14 +148,14 @@ EXAMPLES = """
     debug: msg="Get crazy!"
 """
 
-from ansible.module_utils.basic import *
-try:
-    import requests
-
-    requests.packages.urllib3.disable_warnings()
-    HAS_REQUESTS = True
-except ImportError:
-    HAS_REQUESTS = False
+_COMMENT_PROPERTY = "comment"
+_TTL_PROPERTY = "ttl"
+_USE_TTL_PROPERTY = "use_ttl"
+_NAME_PROPERTY = "name"
+_VIEW_PROPERTY = "view"
+_RETURN_FIELDS_PROPERTY = "_return_fields"
+_IPV4_ADDRESS_PROPERTY = "ipv4addr"
+_ID_PROPERTY = "_ref"
 
 
 # ---------------------------------------------------------------------------
@@ -251,12 +267,15 @@ class Infoblox(object):
         """
         if not name:
             self.module.exit_json(msg="You must specify the option 'name'.")
-        return self.invoke("get", "record:a", params={"name": name, "view": self.dns_view})
+        return self.invoke("get", "record:a", params={
+            _NAME_PROPERTY: name, _VIEW_PROPERTY: self.dns_view, _RETURN_FIELDS_PROPERTY: [
+                _NAME_PROPERTY, _TTL_PROPERTY, _USE_TTL_PROPERTY, _COMMENT_PROPERTY, _VIEW_PROPERTY,
+                _IPV4_ADDRESS_PROPERTY]})
 
     # ---------------------------------------------------------------------------
     # create_a_record()
     # ---------------------------------------------------------------------------
-    def create_a_record(self, name, address, comment):
+    def create_a_record(self, name, address, comment, ttl=None):
         """
         Creates an A record with the given name that points to the given IP address.
 
@@ -266,8 +285,8 @@ class Infoblox(object):
         if not name or not address:
             self.module.exit_json(msg="You must specify the option 'name' and 'address'.")
 
-        payload = {"name": name, "ipv4addr": address, "comment": comment, "view": self.dns_view}
-        return self.invoke("post", "record:a", ok_codes=(200, 201, 400), json=payload)
+        model = _create_a_record_model(name, address, self.dns_view, comment, ttl)
+        return self.invoke("post", "record:a", ok_codes=(200, 201, 400), json=model)
 
     # ---------------------------------------------------------------------------
     # get_aliases()
@@ -358,6 +377,50 @@ class Infoblox(object):
         return self.invoke("put", object_ref, json=payload)
 
 
+def _create_a_record_model(name, address, view, comment, ttl=None):
+    """
+    Creates a JSON model of an A record with the given properties, using the same keys as used by the WAPI.
+    :param name: the domain name
+    :param address: the IP address of the record
+    :param view: the DNS view
+    :param comment: an associated comment
+    :param ttl: the TTL in seconds or `None` if the TTL is to be inherited
+    :return: the created model
+    """
+    model = {
+        _NAME_PROPERTY: name,
+        _IPV4_ADDRESS_PROPERTY: address,
+        _COMMENT_PROPERTY: comment,
+        _VIEW_PROPERTY: view,
+        _USE_TTL_PROPERTY: ttl is not None
+    }
+    if ttl is not None:
+        model[_TTL_PROPERTY] = int(ttl)
+    return model
+
+
+def _are_records_equivalent(a_record_1, a_record_2):
+    """
+    Checks whether the given records are equivalent (ignoring irrelevant properties).
+    :param a_record_1: first A record
+    :param a_record_2: second A record
+    :return: whether the records are equivalent
+    """
+    a_record_1 = copy(a_record_1)
+    a_record_2 = copy(a_record_2)
+
+    ignore_properties = {_ID_PROPERTY}
+    if not (a_record_1.get(_USE_TTL_PROPERTY, True) or a_record_2.get(_USE_TTL_PROPERTY, True)):
+        # Not using TTL property therefore we don't care what the TTL value is
+        ignore_properties.add(_TTL_PROPERTY)
+
+    for property in ignore_properties:
+        for a_record in [a_record_1, a_record_2]:
+            a_record.pop(property, None)
+
+    return a_record_1 == a_record_2
+
+
 # ---------------------------------------------------------------------------
 # MAIN
 # ---------------------------------------------------------------------------
@@ -392,6 +455,7 @@ def main():
             api_version=dict(required=False, default="1.7.1"),
             dns_view=dict(required=False, default="Private"),
             net_view=dict(required=False, default="default"),
+            ttl=dict(required=False)
         ),
         mutually_exclusive=[
             ["network", "address"],
@@ -429,6 +493,7 @@ def main():
     api_version = module.params["api_version"]
     dns_view = module.params["dns_view"]
     net_view = module.params["net_view"]
+    ttl = module.params["ttl"]
 
     try:
         infoblox = Infoblox(module, server, username, password, api_version, dns_view, net_view)
@@ -529,25 +594,48 @@ def main():
             if address:
                 if addresses:
                     module.fail_json(msg="Either specify `address` or `addresses`, not both")
-                addresses = [address]
+                addresses = {address}
+                del address
             addresses = set(addresses)
 
-            correct_existing_addresses = set()
             a_records = infoblox.get_a_record(name)
-            for a_record in a_records:
-                existing_address = a_record["ipv4addr"]
-                if existing_address not in addresses:
-                    infoblox.delete_object(a_record["_ref"])
-                else:
-                    correct_existing_addresses.add(existing_address)
+            desired_a_records = {address: _create_a_record_model(name, address, infoblox.dns_view, comment, ttl)
+                                 for address in addresses}
 
-            addresses_to_add = addresses - correct_existing_addresses
-            if len(addresses_to_add) == 0:
+            a_records_to_delete = []
+            a_records_to_update = []
+            a_records_to_leave = []
+
+            for a_record in a_records:
+                address = a_record[_IPV4_ADDRESS_PROPERTY]
+                if address not in addresses:
+                    a_records_to_delete.append(a_record)
+                else:
+                    if _are_records_equivalent(desired_a_records[address], a_record):
+                        a_records_to_leave.append(a_record)
+                    else:
+                        a_records_to_update.append(a_record)
+
+            # Note: being lazy and doing an update using a delete + create
+            for a_record in a_records_to_delete + a_records_to_update:
+                infoblox.delete_object(a_record[_ID_PROPERTY])
+
+            addresses_of_a_records_to_create = {a_record[_IPV4_ADDRESS_PROPERTY] for a_record in a_records_to_update} \
+                                               | (addresses - {a_record[_IPV4_ADDRESS_PROPERTY] for a_record in a_records_to_leave})
+
+            if len(addresses_of_a_records_to_create) == 0:
                 module.exit_json(changed=False, result=a_records)
             else:
-                for address in addresses_to_add:
-                    infoblox.create_a_record(name, address, comment)
-                module.exit_json(changed=True, result=infoblox.get_a_record(name))
+                for address in addresses_of_a_records_to_create:
+                    infoblox.create_a_record(name, address, comment, ttl)
+
+                # Validation
+                set_a_records = infoblox.get_a_record(name)
+                assert len(set_a_records) == len(addresses) == len(desired_a_records)
+                for a_record in set_a_records:
+                    assert _are_records_equivalent(desired_a_records[a_record[_IPV4_ADDRESS_PROPERTY]], a_record)
+
+                module.exit_json(changed=True, result=set_a_records)
 
         elif action == "add_host":
             result = infoblox.create_host_record(host, network, address, comment)
