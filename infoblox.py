@@ -595,6 +595,8 @@ def main():
                 module.fail_json(msg="Either specify `address` or `addresses`, not both")
             addresses = {address}
             del address
+        if not addresses:
+            module.fail_json(msg="Must specify `address` xor `addresses`")
         addresses = set(addresses)
 
         a_records = infoblox.get_a_record(name)
