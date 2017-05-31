@@ -30,24 +30,28 @@ This gem is known to be compatible with Infoblox versions 1.0 through 2.3.  Whil
 
 ### Playbooke example
 ```
+---
 - hosts: localhost
-     connection: local
-        gather_facts: False
-   tasks:
-   - name: Add host
-     infoblox:
-       server=192.168.1.1
-       username=admin
-       password=admin
-       action=add_host
-       network=192.168.1.0/24
-       host={{ item }}
-     with_items:
-       - test01.local
-       - test02.local
-     register: infoblox
-   - name: Do awesome stuff with the result
-     debug: msg="Get crazy!!"
+  connection: local
+  gather_facts: False
+
+  tasks:
+    - name: "Add host"
+      infoblox:
+        server: 192.168.1.100
+        username: admin
+        password: admin
+        action: add_host
+        network: 192.168.1.0/24
+        host: "{{ item }}"
+      with_items:
+        - test01.internal
+        - test02.internal
+      register: result
+
+    - name: "Do awesome stuff with the result"
+      debug:
+        var: result
 ```
 ## Contributing
 
