@@ -19,9 +19,11 @@ This gem is known to be compatible with Infoblox versions 1.0 through 2.3.  Whil
 ## Usage
 ### Actions
 - get_network [network]
+- get_ipv6network [network]
 - get_next_available_ip [network] 
 - get_host [hostname]
 - add_host [hostname, network]
+- add_ipv6host [hostname, network]
 - delete_host [hostname]
 - set_extattr [hostname, attirbule name, attribute value]
 - get_a_record [name]
