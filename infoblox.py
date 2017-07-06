@@ -39,7 +39,7 @@ options:
     description:
       - Action to perform
     required: True
-    choices: ["get_host", "get_network", "get_next_available_ip", "add_host","delete_host", "set_extattr"]
+    choices: ["get_host", "get_network", "get_ipv6network", "get_next_available_ip", "add_host", "add_ipv6host", "delete_host", "set_extattr"]
   host:
     description:
       - Hostname variable to search, add or delete host object
@@ -204,6 +204,19 @@ class Infoblox(object):
         return self.invoke("get", "network", params={"network": network, "network_view": self.net_view})
 
     # ---------------------------------------------------------------------------
+    # get_ipv6network()
+    # ---------------------------------------------------------------------------
+    def get_ipv6network(self, network):
+        """
+        Search ipv6 network in infoblox by using rest api
+        Network format supported:
+            - ipv6-cidr notation
+        """
+        if not network:
+            self.module.exit_json(msg="You must specify the option 'network'.")
+        return self.invoke("get", "ipv6network", params={"network": network, "network_view": self.net_view})
+
+    # ---------------------------------------------------------------------------
     # get_next_available_ip()
     # ---------------------------------------------------------------------------
     def get_next_available_ip(self, network_ref):
@@ -342,6 +355,25 @@ class Infoblox(object):
         return self.invoke("post", "record:host?_return_fields=ipv4addrs", ok_codes=(200, 201, 400), json=payload)
 
     # ---------------------------------------------------------------------------
+    # create_ipv6_host_record()
+    # ---------------------------------------------------------------------------
+    def create_ipv6_host_record(self, host, network, address, comment):
+        """
+        Add host in infoblox by using rest api
+        """
+        if not host:
+            self.module.exit_json(msg="You must specify the option 'host'.")
+        if network:
+            payload = {"ipv6addrs": [{"ipv6addr": "func:nextavailableip:" + network}], "name": host,
+                       "view": self.dns_view, "comment": comment}
+        elif address:
+            payload = {"name": host, "ipv6addrs": [{"ipv6addr": address}], "view": self.dns_view, "comment": comment}
+        else:
+            raise Exception("Function options missing!")
+
+        return self.invoke("post", "record:host?_return_fields=ipv6addrs", ok_codes=(200, 201, 400), json=payload)
+
+    # ---------------------------------------------------------------------------
     # delete_object()
     # ---------------------------------------------------------------------------
     def delete_object(self, obj_ref):
@@ -438,7 +470,7 @@ def main():
                 "get_aliases", "get_cname", "get_a_record", "get_host", "get_network", "get_next_available_ip",
                 "get_fixedaddress", "reserve_next_available_ip", "add_alias", "add_cname", "set_a_record", "add_host",
                 "delete_alias", "delete_fixedaddress", "delete_host", "delete_cname", "delete_a_record", "set_name",
-                "set_extattr"
+                "set_extattr", "get_ipv6network", "add_ipv6_host"
             ]),
             host=dict(required=False),
             network=dict(required=False),
@@ -504,6 +536,16 @@ def main():
                 module.exit_json(result=result)
             else:
                 module.exit_json(msg="Network %s not found" % network)
+        else:
+            raise Exception("You must specify the option 'network' or 'address'.")
+
+    elif action == "get_ipv6network":
+        if network:
+            result = infoblox.get_ipv6network(network)
+            if result:
+                module.exit_json(result=result)
+            else:
+                module.exit_json(msg="IPv6 Network %s not found" % network)
         else:
             raise Exception("You must specify the option 'network' or 'address'.")
 
@@ -640,6 +682,14 @@ def main():
 
     elif action == "add_host":
         result = infoblox.create_host_record(host, network, address, comment)
+        if result:
+            result = infoblox.get_host_by_name(host)
+            module.exit_json(changed=True, result=result)
+        else:
+            raise Exception()
+
+    elif action == "add_ipv6_host":
+        result = infoblox.create_ipv6_host_record(host, network, address, comment)
         if result:
             result = infoblox.get_host_by_name(host)
             module.exit_json(changed=True, result=result)
