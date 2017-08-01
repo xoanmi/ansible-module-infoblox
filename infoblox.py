@@ -365,15 +365,14 @@ class Infoblox(object):
     # ---------------------------------------------------------------------------
     # create_host_record()
     # ---------------------------------------------------------------------------
-    def create_host_record(self, host, network, address, comment):
+    def create_host_record(self, host, network_ref, address, comment):
         """
         Add host in infoblox by using rest api
         """
         if not host:
-            self.module.exit_json(msg="You must specify the option 'host'.")
-        if network:
-            payload = {"ipv4addrs": [{"ipv4addr": "func:nextavailableip:" + network}], "name": host,
-                       "view": self.dns_view, "comment": comment}
+            self.module.exit_json(msg="You must specify the hostname parameter 'host'.")
+        if network_ref:
+            payload = {"ipv4addrs": [{"ipv4addr": "func:nextavailableip:" + network_ref}], "name": host, "view": self.dns_view, "comment": comment}
         elif address:
             payload = {"name": host, "ipv4addrs": [{"ipv4addr": address}], "view": self.dns_view, "comment": comment}
         else:
@@ -726,7 +725,17 @@ def main():
             module.exit_json(changed=True, result=set_a_records)
 
     elif action == "add_host":
-        result = infoblox.create_host_record(host, network, address, comment)
+    	if network:
+		network_ref = infoblox.get_network(network)
+	elif start_addr and end_addr:
+		network_ref = infoblox.get_range(start_addr, end_addr)
+	else:
+		raise Exception("No network or range start/end address specified")
+	if network_ref:
+		network_ref = network_ref[0]["_ref"] #Break ref out of dict
+	else:
+		raise Exception("No network/range found for specified parameters")
+	result = infoblox.create_host_record(host, network_ref, address, comment)
         if result:
             result = infoblox.get_host_by_name(host)
             module.exit_json(changed=True, result=result)
