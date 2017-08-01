@@ -513,7 +513,7 @@ def main():
             canonical=dict(required=False),
             comment=dict(required=False, default="Object managed by ansible-infoblox module"),
             api_version=dict(required=False, default="1.7.1"),
-            dns_view=dict(required=False, default="Private"),
+            dns_view=dict(required=False, default="default"),
             net_view=dict(required=False, default="default"),
             ttl=dict(required=False)
         ),
