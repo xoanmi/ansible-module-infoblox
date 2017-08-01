@@ -591,14 +591,18 @@ def main():
             raise Exception("You must specify the option 'network' or 'address'.")
 
     elif action == "get_next_available_ip":
-        result = infoblox.get_network(network)
+    	if network:
+        	result = infoblox.get_network(network)
+	elif start_addr and end_addr:
+		result = infoblox.get_range(start_addr, end_addr)
         if result:
             network_ref = result[0]["_ref"]
             result = infoblox.get_next_available_ip(network_ref)
             if result:
-                module.exit_json(result=result)
+	    	ip = result["ips"][0]
+                module.exit_json(result=ip)
             else:
-                module.fail_json(msg="No vailable IPs in network: %s" % network)
+                module.fail_json(msg="No available IPs in network: %s" % network)
 
     elif action == "reserve_next_available_ip":
         result = infoblox.reserve_next_available_ip(network)
