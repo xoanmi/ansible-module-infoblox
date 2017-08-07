@@ -21,7 +21,7 @@ This gem is known to be compatible with Infoblox versions 1.0 through 2.3.  Whil
 - get_network [network]
 - get_ipv6network [network]
 - get_range [start_addr, end_addr]
-- get_next_available_ip [network] 
+- get_next_available_ip [network] | [start_addr, end_addr] 
 - get_host [hostname]
 - add_host [hostname, network]
 - add_ipv6host [hostname, network]
