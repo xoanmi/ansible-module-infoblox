@@ -39,16 +39,28 @@ options:
     description:
       - Action to perform
     required: True
-    choices: ["get_host", "get_network", "get_ipv6network", "get_next_available_ip", "add_host", "add_ipv6host", "delete_host", "set_extattr"]
+    choices: ["get_host", "get_network", "get_range", "get_ipv6network", "get_next_available_ip", "add_host", "add_ipv6host", "delete_host", "set_extattr"]
   host:
     description:
       - Hostname variable to search, add or delete host object
       - The hostname must be in fqdn format
-    requiered: False
+    required: False
   network:
     description:
       - Network address
       - Must be indicated as a CDIR format or 192.168.1.0 format
+    required: False
+    default: False
+  start_addr:
+    description:
+      - Starting address for a range
+      - Must be indicated as 192.168.1.0 format
+    required: False
+    default: False
+  end_addr:
+    description:
+      - Ending address for a range
+      - Must be indicated as 192.168.1.0 format
     required: False
     default: False
   address:
@@ -202,6 +214,21 @@ class Infoblox(object):
         if not network:
             self.module.exit_json(msg="You must specify the option 'network'.")
         return self.invoke("get", "network", params={"network": network, "network_view": self.net_view})
+
+    # ---------------------------------------------------------------------------
+    # get_range()
+    # ---------------------------------------------------------------------------
+    def get_range(self, start_addr, end_addr):
+        """
+        Search range in infoblox by using rest api
+        Starting and ending address format supported:
+            - 192.168.1.0
+        """
+        if not start_addr:
+            self.module.exit_json(msg="You must specify the option 'start_addr.")
+        if not end_addr:
+            self.module.exit_json(msg="You must specify the option 'end_addr.")
+        return self.invoke("get", "range", params={"start_addr": start_addr, "end_addr": end_addr, "network_view": self.net_view})
 
     # ---------------------------------------------------------------------------
     # get_ipv6network()
@@ -467,13 +494,15 @@ def main():
             username=dict(required=True),
             password=dict(required=True, no_log=True),
             action=dict(required=True, choices=[
-                "get_aliases", "get_cname", "get_a_record", "get_host", "get_network", "get_next_available_ip",
+                "get_aliases", "get_cname", "get_a_record", "get_host", "get_network", "get_range", "get_next_available_ip",
                 "get_fixedaddress", "reserve_next_available_ip", "add_alias", "add_cname", "set_a_record", "add_host",
                 "delete_alias", "delete_fixedaddress", "delete_host", "delete_cname", "delete_a_record", "set_name",
                 "set_extattr", "get_ipv6network", "add_ipv6_host"
             ]),
             host=dict(required=False),
             network=dict(required=False),
+            start_addr=dict(required=False),
+            end_addr=dict(required=False),
             object_ref=dict(required=False),
             name=dict(required=False),
             address=dict(required=False),
@@ -514,6 +543,8 @@ def main():
     object_ref = module.params["object_ref"]
     name = module.params["name"]
     network = module.params["network"]
+    start_addr = module.params["start_addr"]
+    end_addr = module.params["end_addr"]
     address = module.params["address"]
     addresses = module.params["addresses"]
     alias = module.params["alias"]
@@ -538,6 +569,16 @@ def main():
                 module.exit_json(msg="Network %s not found" % network)
         else:
             raise Exception("You must specify the option 'network' or 'address'.")
+
+    if action == "get_range":
+        if start_addr and end_addr:
+            result = infoblox.get_range(start_addr, end_addr)
+            if result:
+                module.exit_json(result=result)
+            else:
+                module.exit_json(msg="Range %s not found" % network)
+        else:
+            raise Exception("You must specify the options 'start_addr' and 'end_addr'.")
 
     elif action == "get_ipv6network":
         if network:

@@ -20,6 +20,7 @@ This gem is known to be compatible with Infoblox versions 1.0 through 2.3.  Whil
 ### Actions
 - get_network [network]
 - get_ipv6network [network]
+- get_range [start_addr, end_addr]
 - get_next_available_ip [network] 
 - get_host [hostname]
 - add_host [hostname, network]
@@ -30,7 +31,7 @@ This gem is known to be compatible with Infoblox versions 1.0 through 2.3.  Whil
 - set_a_record [name, address | addresses, ttl=None] (this will change existing records if they exist)
 - delete_a_record [name]
 
-### Playbooke example
+### Playbook example
 ```
 ---
 - hosts: localhost
