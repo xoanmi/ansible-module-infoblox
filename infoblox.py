@@ -168,6 +168,8 @@ _VIEW_PROPERTY = "view"
 _RETURN_FIELDS_PROPERTY = "_return_fields"
 _IPV4_ADDRESS_PROPERTY = "ipv4addr"
 _ID_PROPERTY = "_ref"
+_PTRDNAME_PROPERTY = "ptrdname"
+_EXT_ATTR_PROPERTY = "extattrs"
 
 
 # ---------------------------------------------------------------------------
@@ -329,6 +331,37 @@ class Infoblox(object):
         return self.invoke("post", "record:a", ok_codes=(200, 201, 400), json=model)
 
     # ---------------------------------------------------------------------------
+    # get_ptr_record()
+    # ---------------------------------------------------------------------------
+    def get_ptr_record(self, address):
+        """
+        Retrieves information about the PTR record with the given address.
+        """
+        if not address:
+            self.module.exit_json(msg="You must specify the option 'address'.")
+        return self.invoke("get", "record:ptr", params={
+            _IPV4_ADDRESS_PROPERTY: address , _VIEW_PROPERTY: self.dns_view, _RETURN_FIELDS_PROPERTY: [
+                _NAME_PROPERTY, _TTL_PROPERTY, _USE_TTL_PROPERTY, _COMMENT_PROPERTY, _VIEW_PROPERTY,
+                _IPV4_ADDRESS_PROPERTY]})
+
+    # ---------------------------------------------------------------------------
+    # create_a_record()
+    # ---------------------------------------------------------------------------
+    def create_ptr_record(self, name, address, comment, ttl=None, set_attr=None):
+        """
+        Creates an PTR record with the given name that points to the given IP address.
+        For documentation on how to use the related part of the InfoBlox WAPI, refer to:
+        https://ipam.illinois.edu/wapidoc/objects/record.ptr.html
+        """
+        if not name or not address:
+            self.module.exit_json(msg="You must specify the option 'name' and 'address'.")
+        if set_attr is not None:
+            set_attr = add_attr(set_attr)
+
+        model = _create_ptr_record_model(name, address, self.dns_view, comment, ttl, set_attr)
+        return self.invoke("post", "record:ptr", ok_codes=(200, 201, 400), json=model)
+
+    # ---------------------------------------------------------------------------
     # get_aliases()
     # ---------------------------------------------------------------------------
     def get_aliases(self, host):
@@ -434,6 +467,42 @@ class Infoblox(object):
         payload = {"extattrs": {attr_name: {"value": attr_value}}}
         return self.invoke("put", object_ref, json=payload)
 
+def add_attr(attributes):
+    if isinstance(attributes, dict) and len(attributes.keys()) > 1:
+        self.module.exit_json(msg="A dict was sent with more then one key/val pair. Please use {key:val } only .")
+    elif isinstance(attributes, dict):
+        attributes = [{ attributes.keys()[0]: attributes.values()[0] }]
+
+    attr = {}
+    for item in attributes:
+        if len(item.keys()) == 1 and len(item.values()) == 1:
+            attr[item.keys()[0]] = {'value': item.values()[0]}
+        else:
+            self.module.exit_json(msg="A dict was sent with more then one key/val pair. Please use {key:val } only .")
+    return attr
+
+def _create_ptr_record_model(name, address, view, comment, ttl=None, ext_attr=None):
+    """
+    Creates a JSON model of an A record with the given properties, using the same keys as used by the WAPI.
+    :param name: the domain name
+    :param address: the IP address of the record
+    :param view: the DNS view
+    :param comment: an associated comment
+    :param ttl: the TTL in seconds or `None` if the TTL is to be inherited
+    :return: the created model
+    """
+    model = {
+        _PTRDNAME_PROPERTY: name,
+        _IPV4_ADDRESS_PROPERTY: address,
+        _COMMENT_PROPERTY: comment,
+        _VIEW_PROPERTY: view,
+        _USE_TTL_PROPERTY: ttl is not None
+    }
+    if ttl is not None:
+        model[_TTL_PROPERTY] = int(ttl)
+    if ext_attr is not None:
+        model[_EXT_ATTR_PROPERTY] = ext_attr
+    return model
 
 def _create_a_record_model(name, address, view, comment, ttl=None):
     """
@@ -494,9 +563,11 @@ def main():
             password=dict(required=True, no_log=True),
             action=dict(required=True, choices=[
                 "get_aliases", "get_cname", "get_a_record", "get_host", "get_network", "get_range", "get_next_available_ip",
-                "get_fixedaddress", "reserve_next_available_ip", "add_alias", "add_cname", "set_a_record", "add_host",
-                "delete_alias", "delete_fixedaddress", "delete_host", "delete_cname", "delete_a_record", "set_name",
-                "set_extattr", "get_ipv6network", "add_ipv6_host"
+                "get_fixedaddress", "get_ipv6network", "get_ptr_record"
+                "add_alias", "add_cname", "add_host", "add_ipv6_host",
+                "set_a_record", "set_name", "set_extattr", "create_ptr_record",
+                "delete_alias", "delete_cname", "delete_a_record", "delete_fixedaddress", "delete_host",
+                "reserve_next_available_ip"
             ]),
             host=dict(required=False),
             network=dict(required=False),
