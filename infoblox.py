@@ -290,15 +290,52 @@ class Infoblox(object):
     # ---------------------------------------------------------------------------
     # create_cname()
     # ---------------------------------------------------------------------------
-    def create_cname(self, cname, canonical, comment):
+    def create_cname(self, cname, canonical, comment, set_attr=None):
         """
         Add CNAME in infoblox by using rest api
         """
         if not cname or not canonical:
             self.module.exit_json(msg="You must specify the option 'name' and 'canonical'.")
+        if set_attr is not None:
+            set_attr = add_attr(set_attr)
 
         payload = {"name": cname, "canonical": canonical, "comment": comment, "view": self.dns_view}
+        if set_attr is not None:
+            set_attr = add_attr(set_attr)
+            payload[_EXT_ATTR_PROPERTY] = set_attr
+
         return self.invoke("post", "record:cname", ok_codes=(200, 201, 400), json=payload)
+
+    # ---------------------------------------------------------------------------
+    # update_cname_record()
+    # ---------------------------------------------------------------------------
+    def update_cname_record(self, current_cname, current_canonical, desired_cname, desired_canonical, comment=None, set_attr=None):
+        """
+        Update alias for a cname entry
+        """
+        cnames = self.get_cname(current_cname)
+        
+        for cname in cnames:
+            if cname.get('name') == current_cname:
+                key_out = cname.get('_ref')
+                object_ref = key_out.split(':')[0] + ':' + key_out.split(':')[1]
+                comment = cname.get('comment')
+                ttl = cname.get('ttl')
+                break
+
+        if not object_ref:
+            self.module.exit_json(msg="IP {} and ptrdname {} pair was not found.".format(current_ip, current_name))
+
+        payload = {"name": desired_cname, "canonical": desired_canonical, "view": self.dns_view}
+        if comment is not None:
+            payload['comment'] = comment
+        if ttl is not None:
+            payload['ttl'] = ttl
+        if set_attr is not None:
+            set_attr = add_attr(set_attr)
+            payload[_EXT_ATTR_PROPERTY] = set_attr
+
+        return self.invoke("put", object_ref, json=payload)
 
     # ---------------------------------------------------------------------------
     # get_a_record()
@@ -317,7 +354,7 @@ class Infoblox(object):
     # ---------------------------------------------------------------------------
     # create_a_record()
     # ---------------------------------------------------------------------------
-    def create_a_record(self, name, address, comment, ttl=None):
+    def create_a_record(self, name, address, comment, ttl=None, set_attr=None):
         """
         Creates an A record with the given name that points to the given IP address.
 
@@ -326,8 +363,10 @@ class Infoblox(object):
         """
         if not name or not address:
             self.module.exit_json(msg="You must specify the option 'name' and 'address'.")
+        if set_attr is not None:
+            set_attr = add_attr(set_attr)
 
-        model = _create_a_record_model(name, address, self.dns_view, comment, ttl)
+        model = _create_a_record_model(name, address, self.dns_view, comment, ttl, set_attr)
         return self.invoke("post", "record:a", ok_codes=(200, 201, 400), json=model)
 
     # ---------------------------------------------------------------------------
@@ -342,7 +381,7 @@ class Infoblox(object):
         return self.invoke("get", "record:ptr", params={
             _IPV4_ADDRESS_PROPERTY: address , _VIEW_PROPERTY: self.dns_view, _RETURN_FIELDS_PROPERTY: [
                 _NAME_PROPERTY, _TTL_PROPERTY, _USE_TTL_PROPERTY, _COMMENT_PROPERTY, _VIEW_PROPERTY,
-                _IPV4_ADDRESS_PROPERTY]})
+                _IPV4_ADDRESS_PROPERTY, _PTRDNAME_PROPERTY]})
 
     # ---------------------------------------------------------------------------
     # create_a_record()
@@ -362,6 +401,30 @@ class Infoblox(object):
         return self.invoke("post", "record:ptr", ok_codes=(200, 201, 400), json=model)
 
     # ---------------------------------------------------------------------------
+    # update_ptr_record()
+    # ---------------------------------------------------------------------------
+    def update_ptr_record(self, current_address, current_name, desired_address, desired_name, set_attr=None):
+        """
+        Update alias for a ptr record
+        """
+        ptrs = self.get_ptr_record(current_address)
+        for current_ptr in ptrs:
+            if current_ptr.get('ptrdname') == current_name:
+                key_out = current_ptr.get('_ref')
+                object_ref = key_out.split(':')[0] + ':' + key_out.split(':')[1]
+                comment = current_ptr.get('comment')
+                ttl = current_ptr.get('ttl')
+                break
+
+        if not object_ref:
+            self.module.exit_json(msg="IP {} and ptrdname {} pair was not found.".format(current_ip, current_name))
+        if set_attr is not None:
+            set_attr = add_attr(set_attr)
+
+        model = _create_ptr_record_model(desired_name, desired_address, self.dns_view, comment, ttl, set_attr)
+        return self.invoke("put", object_ref, json=model)
+
+    # ---------------------------------------------------------------------------
     # get_aliases()
     # ---------------------------------------------------------------------------
     def get_aliases(self, host):
@@ -375,12 +438,14 @@ class Infoblox(object):
     # ---------------------------------------------------------------------------
     # update_host_alias()
     # ---------------------------------------------------------------------------
-    def update_host_alias(self, object_ref, alias):
+    def update_host_alias(self, object_ref, alias, set_attr=None):
         """
         Update alias for a host
         """
         if not object_ref:
             self.module.exit_json(msg="Object _ref required!")
+        if set_attr is not None:
+            set_attr = add_attr(set_attr)
         return self.invoke("put", object_ref, json=alias)
 
     # ---------------------------------------------------------------------------
@@ -398,7 +463,7 @@ class Infoblox(object):
     # ---------------------------------------------------------------------------
     # create_host_record()
     # ---------------------------------------------------------------------------
-    def create_host_record(self, host, network_ref, address, comment):
+    def create_host_record(self, host, network_ref, address, comment, set_attr=None):
         """
         Add host in infoblox by using rest api
         """
@@ -410,13 +475,16 @@ class Infoblox(object):
             payload = {"name": host, "ipv4addrs": [{"ipv4addr": address}], "view": self.dns_view, "comment": comment}
         else:
             raise Exception("Function options missing!")
+        if set_attr is not None:
+            set_attr = add_attr(set_attr)
+            payload[_EXT_ATTR_PROPERTY] = set_attr
 
         return self.invoke("post", "record:host?_return_fields=ipv4addrs", ok_codes=(200, 201, 400), json=payload)
 
     # ---------------------------------------------------------------------------
     # create_ipv6_host_record()
     # ---------------------------------------------------------------------------
-    def create_ipv6_host_record(self, host, network, address, comment):
+    def create_ipv6_host_record(self, host, network, address, comment, set_attr=None):
         """
         Add host in infoblox by using rest api
         """
@@ -429,6 +497,10 @@ class Infoblox(object):
             payload = {"name": host, "ipv6addrs": [{"ipv6addr": address}], "view": self.dns_view, "comment": comment}
         else:
             raise Exception("Function options missing!")
+
+        if set_attr is not None:
+            set_attr = add_attr(set_attr)
+            payload[_EXT_ATTR_PROPERTY] = set_attr
 
         return self.invoke("post", "record:host?_return_fields=ipv6addrs", ok_codes=(200, 201, 400), json=payload)
 
@@ -481,7 +553,7 @@ def add_attr(attributes):
             self.module.exit_json(msg="A dict was sent with more then one key/val pair. Please use {key:val } only .")
     return attr
 
-def _create_ptr_record_model(name, address, view, comment, ttl=None, ext_attr=None):
+def _create_ptr_record_model(name, address, view, comment, ttl=None, extattr=None):
     """
     Creates a JSON model of an A record with the given properties, using the same keys as used by the WAPI.
     :param name: the domain name
@@ -493,6 +565,7 @@ def _create_ptr_record_model(name, address, view, comment, ttl=None, ext_attr=No
     """
     model = {
         _PTRDNAME_PROPERTY: name,
+        _NAME_PROPERTY: name,
         _IPV4_ADDRESS_PROPERTY: address,
         _COMMENT_PROPERTY: comment,
         _VIEW_PROPERTY: view,
@@ -500,11 +573,11 @@ def _create_ptr_record_model(name, address, view, comment, ttl=None, ext_attr=No
     }
     if ttl is not None:
         model[_TTL_PROPERTY] = int(ttl)
-    if ext_attr is not None:
-        model[_EXT_ATTR_PROPERTY] = ext_attr
+    if extattr is not None:
+        model[_EXT_ATTR_PROPERTY] = extattr
     return model
 
-def _create_a_record_model(name, address, view, comment, ttl=None):
+def _create_a_record_model(name, address, view, comment, ttl=None, extattr=None):
     """
     Creates a JSON model of an A record with the given properties, using the same keys as used by the WAPI.
     :param name: the domain name
@@ -523,6 +596,8 @@ def _create_a_record_model(name, address, view, comment, ttl=None):
     }
     if ttl is not None:
         model[_TTL_PROPERTY] = int(ttl)
+    if ext_attr is not None:
+        model[_EXT_ATTR_PROPERTY] = ext_attr
     return model
 
 
@@ -564,8 +639,8 @@ def main():
             action=dict(required=True, choices=[
                 "get_aliases", "get_cname", "get_a_record", "get_host", "get_network", "get_range", "get_next_available_ip",
                 "get_fixedaddress", "get_ipv6network", "get_ptr_record"
-                "add_alias", "add_cname", "add_host", "add_ipv6_host",
-                "set_a_record", "set_name", "set_extattr", "create_ptr_record",
+                "add_alias", "add_cname", "add_host", "add_ipv6_host", "create_ptr_record",
+                "set_a_record", "set_name", "set_extattr",
                 "delete_alias", "delete_cname", "delete_a_record", "delete_fixedaddress", "delete_host",
                 "reserve_next_available_ip"
             ]),
@@ -586,6 +661,7 @@ def main():
             api_version=dict(required=False, default="1.7.1"),
             dns_view=dict(required=False, default="default"),
             net_view=dict(required=False, default="default"),
+            set_attr=dict(required=False, default=None),
             ttl=dict(required=False)
         ),
         mutually_exclusive=[
@@ -620,6 +696,7 @@ def main():
     alias = module.params["alias"]
     attr_name = module.params["attr_name"]
     attr_value = module.params["attr_value"]
+    set_attr = module.params["set_attr"]
     cname = module.params["cname"]
     canonical = module.params["canonical"]
     comment = module.params["comment"]
@@ -663,6 +740,7 @@ def main():
     elif action == "get_next_available_ip":
     	if network:
         	result = infoblox.get_network(network)
+
 	elif start_addr and end_addr:
 		result = infoblox.get_range(start_addr, end_addr)
         if result:
@@ -785,7 +863,7 @@ def main():
             module.exit_json(changed=False, result=a_records)
         else:
             for address in addresses_of_a_records_to_create:
-                infoblox.create_a_record(name, address, comment, ttl)
+                infoblox.create_a_record(name, address, comment, ttl, set_attr)
 
             # Validation
             set_a_records = infoblox.get_a_record(name)
