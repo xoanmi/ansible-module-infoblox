@@ -10,7 +10,6 @@ try:
 except ImportError:
     HAS_REQUESTS = False
 
-
 DOCUMENTATION = """
 module: infoblox
 short_description: manage Infoblox via Web API
@@ -180,6 +179,9 @@ _MAC_PROPERTY = "mac"
 _CANONICAL_PROPERTY = "canonical"
 _IPV4_ADDRS_PROPERTY = "ipv4addr"
 _IPV6_ADDRS_PROPERTY = "ipv6addr"
+_FQDN_PROPERTY = "fqdn"
+_FORWARD_TO_PROPERTY = "forward_to"
+_NETWORK_PROPERTY = "network"
 
 
 # ---------------------------------------------------------------------------
@@ -200,7 +202,8 @@ class Infoblox(object):
                             _ID_PROPERTY, _PTRDNAME_PROPERTY, _EXT_ATTR_PROPERTY, _TXT_PROPERTY,
                             _PORT_PROPERTY, _PRIORITY_PROPERTY, _WEIGHT_PROPERTY, _TARGET_PROPERTY,
                             _MAC_PROPERTY, _CANONICAL_PROPERTY, _IPV4_ADDRS_PROPERTY,
-                            _IPV6_ADDRS_PROPERTY ]
+                            _IPV6_ADDRS_PROPERTY, _FQDN_PROPERTY, _FORWARD_TO_PROPERTY,
+                            _NETWORK_PROPERTY ]
 
     def invoke(self, method, tail, ok_codes=(200,), **params):
         """
@@ -223,7 +226,7 @@ class Infoblox(object):
         return_property = []
         if base:
             return_property.extend([ _NAME_PROPERTY, _TTL_PROPERTY, _USE_TTL_PROPERTY,
-                                     _VIEW_PROPERTY, _COMMENT, _EXT_ATTR_PROPERTY ])
+                                     _VIEW_PROPERTY, _COMMENT_PROPERTY, _EXT_ATTR_PROPERTY ])
         for current_property in property_list:
              return_property.append(current_property)
         return return_property
@@ -336,7 +339,7 @@ class Infoblox(object):
     # ---------------------------------------------------------------------------
     # create_cname()
     # ---------------------------------------------------------------------------
-    def create_cname(self, cname, canonical, comment, extattrs=None):
+    def create_cname(self, cname, canonical, comment=None, extattrs=None):
         """
         Add CNAME in infoblox by using rest api
         """
@@ -573,7 +576,7 @@ class Infoblox(object):
     # ---------------------------------------------------------------------------
     # create_txt_record()
     # ---------------------------------------------------------------------------
-    def create_txt_record(self, name, text, comment, ttl=None, extattrs=None):
+    def create_txt_record(self, name, text, comment=None, ttl=None, extattrs=None):
         """
         Creates an PTR record with the given name that points to the given IP address.
         For documentation on how to use the related part of the InfoBlox WAPI, refer to:
@@ -674,7 +677,7 @@ class Infoblox(object):
     # ---------------------------------------------------------------------------
     # create_host_record()
     # ---------------------------------------------------------------------------
-    def create_host_record(self, host, network_ref, address, comment=None, extattrs=None):
+    def create_host_record(self, host, network_ref, address, comment=None, ttl=None, extattrs=None):
         """
         Add host in infoblox by using rest api
         """
@@ -703,7 +706,7 @@ class Infoblox(object):
     # ---------------------------------------------------------------------------
     # update_host_record()
     # ---------------------------------------------------------------------------
-    def update_host_record(self, current_name, current_address, desired_name, desired_address, comment=None, extattrs=None):
+    def update_host_record(self, current_name, current_address, desired_name, desired_address, comment=None, ttl=None, extattrs=None):
         """
         Update a host record
         """
@@ -747,7 +750,7 @@ class Infoblox(object):
     # ---------------------------------------------------------------------------
     # create_ipv6_host_record()
     # ---------------------------------------------------------------------------
-    def create_ipv6_host_record(self, host, network, address, comment, extattrs=None):
+    def create_ipv6_host_record(self, host, network, address, comment=None, ttl=None, extattrs=None):
         """
         Add host in infoblox by using rest api
         """
@@ -770,6 +773,154 @@ class Infoblox(object):
                   _COMMENT_PROPERTY: comment, _EXT_ATTR_PROPERTY: extattrs }
         model = self._make_model(model)
         return self.invoke("post", "record:host?_return_fields=ipv6addrs", ok_codes=(200, 201, 400), json=payload)
+
+    # ---------------------------------------------------------------------------
+    # get_auth_zone()
+    # ---------------------------------------------------------------------------
+    def get_auth_zone(self, fqdn):
+        """
+        Search for Authoritative Zone in infoblox by fqdn
+        """
+        if fqdn is None:
+            self.module.exit_json(msg="You must specify the option 'name'.")
+
+        params={ _FQDN_PROPERTY: fqdn, _VIEW_PROPERTY: self.dns_view}
+        return self.invoke("get", "zone_auth", params=params)
+
+    # ---------------------------------------------------------------------------
+    # create_auth_zone()
+    # ---------------------------------------------------------------------------
+    def create_auth_zone(self, fqdn,
+                         comment=None, ttl=None, extattrs=None):
+        """
+        Add FQDN in infoblox by using rest api
+        """
+        if fqdn is None:
+            self.module.exit_json(msg="You must specify the option 'name'.")
+
+        if extattrs is not None:
+            extattrs = add_attr(extattrs)
+
+        model = { _FQDN_PROPERTY: fqdn,
+                  _VIEW_PROPERTY: self.dns_view, _COMMENT_PROPERTY: comment,
+                  _EXT_ATTR_PROPERTY: extattrs }
+        model = self._make_model(model)
+        return self.invoke("post", "zone_auth", ok_codes=(200, 201, 400), json=model)
+
+    # ---------------------------------------------------------------------------
+    # update_auth_zone()
+    # ---------------------------------------------------------------------------
+    def update_auth_zone(self, current_fqdn,
+                         comment=None, ttl=None, extattrs=None):
+        """
+        Update alias for a cname entry
+        """
+        object_ref = None
+        fqdns = self.get_cname(current_fqdn)
+
+        for fqdn in fqdns:
+            if fqdn.get('name') == current_fqdn:
+                key_out = fqdn.get('_ref')
+                object_ref = key_out.split(':')[0]
+                break
+
+        if not object_ref:
+            msg="IP {} and ptrdname {} pair was not found.".format(current_ip, current_name)
+            self.module.exit_json(msg=msg)
+
+        if object_ref is None:
+            self.module.exit_json(msg="Name {} was not found.".format(current_name))
+
+        model = { _FQDN_PROPERTY: desired_name, 
+                  _VIEW_PROPERTY: self.dns_view, _COMMENT_PROPERTY: comment,
+                  _USE_TTL_PROPERTY: ttl is not None, _TTL_PROPERTY: ttl,
+                  _EXT_ATTR_PROPERTY: extattrs }
+        model = self._make_model(model)
+        return self.invoke("put", object_ref, json=model)
+
+    # ---------------------------------------------------------------------------
+    # get_forward_zone()
+    # ---------------------------------------------------------------------------
+    def get_forward_zone(self, fqdn):
+        """
+        Search for Forward Zone in infoblox by fqdn
+        """
+        if fqdn is None:
+            self.module.exit_json(msg="You must specify the option 'fqdn'.")
+
+        params={ _FQDN_PROPERTY: fqdn, _VIEW_PROPERTY: self.dns_view}
+        return self.invoke("get", "zone_forward", params=params)
+
+    # ---------------------------------------------------------------------------
+    # create_auth_zone()
+    # ---------------------------------------------------------------------------
+    def create_forward_zone(self, fqdn, name, address,
+                         comment=None, ttl=None, extattrs=None):
+        """
+        Add FQDN in infoblox by using rest api
+        """
+        if fqdn is None:
+            self.module.exit_json(msg="You must specify the option 'fqdn'.")
+
+        if extattrs is not None:
+            extattrs = add_attr(extattrs)
+        if name != "dns-server":
+            self.module.exit_json(msg="Currently only support dns-server.")
+
+        forward_to = [{_NAME_PROPERTY: name, "address": address}]
+        model = { _FQDN_PROPERTY: fqdn, _FORWARD_TO_PROPERTY: forward_to,
+                  _VIEW_PROPERTY: self.dns_view, _COMMENT_PROPERTY: comment,
+                  _EXT_ATTR_PROPERTY: extattrs }
+        model = self._make_model(model)
+        print model
+        return self.invoke("post", "zone_forward", ok_codes=(200, 201, 400), json=model)
+
+    # ---------------------------------------------------------------------------
+    # update_forward_zone()
+    # ---------------------------------------------------------------------------
+    def update_forward_zone(self, current_fqdn, desired_name, desired_address,
+                         comment=None, ttl=None, extattrs=None):
+        """
+        Update forward zone entry
+        """
+        object_ref = None
+        fqdns = self.get_forward_zone(current_fqdn)
+
+        for fqdn in fqdns:
+            if fqdn.get('fqdn') == current_fqdn:
+                key_out = fqdn.get('_ref')
+                object_ref = key_out.split(':')[0]
+                break
+
+        if not object_ref:
+            msg="FQDN {} was not found.".format(current_fqdn)
+            self.module.exit_json(msg=msg)
+
+        if object_ref is None:
+            self.module.exit_json(msg="FQDN {} was not found.".format(current_fqdn))
+
+        forward_to = [{_NAME_PROPERTY: desired_name, "address": desired_address}]
+        model = { _FORWARD_TO_PROPERTY: forward_to,
+                  _VIEW_PROPERTY: self.dns_view, _COMMENT_PROPERTY: comment,
+                  _EXT_ATTR_PROPERTY: extattrs }
+        model = self._make_model(model)
+        return self.invoke("put", object_ref, json=model)
+
+    # ---------------------------------------------------------------------------
+    # get_ipam_network()
+    # ---------------------------------------------------------------------------
+    def get_ipam_network_container(self, network):
+        """
+        Search for IPAM network in infoblox by network
+        """
+        if network is None:
+            self.module.exit_json(msg="You must specify the option 'network'.")
+
+        property_list = [ 'network_container', 'network_view', _NETWORK_PROPERTY ]
+        my_property = self._return_property(False, property_list)
+        params={ _NETWORK_PROPERTY: network,
+                 _RETURN_FIELDS_PROPERTY: my_property }
+        return self.invoke("get", "networkcontainer", params=params)
 
     # ---------------------------------------------------------------------------
     # delete_object()
@@ -885,6 +1036,7 @@ def main():
         ),
         mutually_exclusive=[
             ["network", "address"],
+            ["addresses", "address"],
             ["host", "cname"]
         ],
         required_together=[
@@ -968,7 +1120,7 @@ def main():
             network_ref = result[0]["_ref"]
             result = infoblox.get_next_available_ip(network_ref)
             if result:
-            ip = result["ips"][0]
+                ip = result["ips"][0]
                 module.exit_json(result=ip)
             else:
                 module.fail_json(msg="No available IPs in network: %s" % network)
@@ -1046,13 +1198,11 @@ def main():
             raise Exception()
 
     elif action == "set_a_record":
+        if not address and not addresses :
+            module.fail_json(msg="Must specify `address` xor `addresses`")
         if address:
-            if addresses:
-                module.fail_json(msg="Either specify `address` or `addresses`, not both")
             addresses = {address}
             del address
-        if not addresses:
-            module.fail_json(msg="Must specify `address` xor `addresses`")
         addresses = set(addresses)
 
         a_records = infoblox.get_a_record(name)
@@ -1097,15 +1247,16 @@ def main():
     elif action == "add_host":
         if network:
             network_ref = infoblox.get_network(network)
-    elif start_addr and end_addr:
-        network_ref = infoblox.get_range(start_addr, end_addr)
-    else:
-        raise Exception("No network or range start/end address specified")
-    if network_ref:
-        network_ref = network_ref[0]["_ref"] #Break ref out of dict
-    else:
-        raise Exception("No network/range found for specified parameters")
-    result = infoblox.create_host_record(host, network_ref, address, comment)
+
+        elif start_addr and end_addr:
+            network_ref = infoblox.get_range(start_addr, end_addr)
+        else:
+            raise Exception("No network or range start/end address specified")
+        if network_ref:
+            network_ref = network_ref[0]["_ref"] #Break ref out of dict
+        else:
+            raise Exception("No network/range found for specified parameters")
+        result = infoblox.create_host_record(host, network_ref, address, comment)
         if result:
             result = infoblox.get_host_by_name(host)
             module.exit_json(changed=True, result=result)
