@@ -160,16 +160,23 @@ EXAMPLES = """
     debug: msg="Get crazy!"
 """
 
+_RETURN_FIELDS_PROPERTY = "_return_fields"
 _COMMENT_PROPERTY = "comment"
 _TTL_PROPERTY = "ttl"
 _USE_TTL_PROPERTY = "use_ttl"
 _NAME_PROPERTY = "name"
 _VIEW_PROPERTY = "view"
-_RETURN_FIELDS_PROPERTY = "_return_fields"
 _IPV4_ADDRESS_PROPERTY = "ipv4addr"
 _ID_PROPERTY = "_ref"
 _PTRDNAME_PROPERTY = "ptrdname"
 _EXT_ATTR_PROPERTY = "extattrs"
+_TXT_PROPERTY = "text"
+_PORT_PROPERTY = "port"
+_PRIORITY_PROPERTY = "priority"
+_WEIGHT_PROPERTY = "weight"
+_TARGET_PROPERTY = "target"
+_MAC_PROPERTY = "mac"
+_CANONICAL_PROPERTY = "canonical"
 
 
 # ---------------------------------------------------------------------------
@@ -185,6 +192,11 @@ class Infoblox(object):
         self.net_view = net_view
         self.auth = (username, password)
         self.base_url = "https://{host}/wapi/v{version}/".format(host=server, version=api_version)
+        self.model_list = [ _COMMENT_PROPERTY, _TTL_PROPERTY, _USE_TTL_PROPERTY, _NAME_PROPERTY,
+                            _VIEW_PROPERTY, _IPV4_ADDRESS_PROPERTY,
+                            _ID_PROPERTY, _PTRDNAME_PROPERTY, _EXT_ATTR_PROPERTY, _TXT_PROPERTY,
+                            _PORT_PROPERTY, _PRIORITY_PROPERTY, _WEIGHT_PROPERTY, _TARGET_PROPERTY
+                            _MAC_PROPERTY, _CANONICAL_PROPERTY ]
 
     def invoke(self, method, tail, ok_codes=(200,), **params):
         """
@@ -194,7 +206,7 @@ class Infoblox(object):
         response = request(self.base_url + tail, auth=self.auth, verify=False, **params)
 
         if response.status_code not in ok_codes:
-            response.raise_for_status()
+            raise Exception(response.json())
         else:
             payload = response.json()
 
@@ -202,6 +214,22 @@ class Infoblox(object):
             raise Exception(payload["text"])
         else:
             return payload
+
+    def _return_property(self, base, property_list=[]):
+        return_property = []
+        if base:
+            return_property.extend([ _NAME_PROPERTY, _TTL_PROPERTY, _USE_TTL_PROPERTY,
+                                     _VIEW_PROPERTY, _COMMENT, _EXT_ATTR_PROPERTY ])
+        for current_property in property_list:
+             return_property.append(current_property)
+        return return_property
+
+    def _make_model(self, model_dict):
+        return_model = {}
+        for model in self.model_list:
+            if model_dict.get(model):
+                return_model[model] = model_dict.get(model)
+        return return_model
 
     # ---------------------------------------------------------------------------
     # get_network()
@@ -259,11 +287,19 @@ class Infoblox(object):
     # ---------------------------------------------------------------------------
     # reserve_next_available_ip()
     # ---------------------------------------------------------------------------
-    def reserve_next_available_ip(self, network, mac_addr="00:00:00:00:00:00",
-                                  comment="IP reserved via ansible infoblox module"):
+    def reserve_next_available_ip(self, network, mac_addr=None,
+                                  comment=None, extattrs=None):
         """
         Reserve ip address via fixedaddress in infoblox by using rest api
         """
+        if comment is None:
+            comment = "IP reserved via ansible infoblox module"
+        if extattrs is not None:
+            extattrs = add_attr(extattrs)
+
+        model = { _IPV4_ADDRESS_PROPERTY: "func:nextavailableip:" + network, _MAC_PROPERTY: mac,
+                  _COMMENT_PROPERTY: comment, _EXT_ATTR_PROPERTY: extattrs }
+        model = self._make_model(model)
         payload = {"ipv4addr": "func:nextavailableip:" + network, "mac": mac_addr, "comment": comment}
         return self.invoke("post", "fixedaddress?_return_fields=ipv4addr", ok_codes=(200, 201, 400), json=payload)
 
@@ -274,7 +310,8 @@ class Infoblox(object):
         """
         Search FIXEDADDRESS reserve by address in infoblox through the rest api
         """
-        return self.invoke("get", "fixedaddress", params={"ipv4addr": address})
+        params = {"ipv4addr": address}
+        return self.invoke("get", "fixedaddress", params=params)
 
     # ---------------------------------------------------------------------------
     # get_cname()
@@ -285,34 +322,37 @@ class Infoblox(object):
         """
         if not cname:
             self.module.exit_json(msg="You must specify the option 'cname'.")
-        return self.invoke("get", "record:cname", params={"name": cname, "view": self.dns_view})
+
+        params={ _NAME_PROPERTY: name, _VIEW_PROPERTY: self.dns_view}
+        return self.invoke("get", "record:cname", params=params)
 
     # ---------------------------------------------------------------------------
     # create_cname()
     # ---------------------------------------------------------------------------
-    def create_cname(self, cname, canonical, comment, set_attr=None):
+    def create_cname(self, cname, canonical, comment, extattrs=None):
         """
         Add CNAME in infoblox by using rest api
         """
-        if not cname or not canonical:
+        if cname is None or canonical is None:
             self.module.exit_json(msg="You must specify the option 'name' and 'canonical'.")
-        if set_attr is not None:
-            set_attr = add_attr(set_attr)
+        if extattrs is not None:
+            extattrs = add_attr(extattrs)
 
-        payload = {"name": cname, "canonical": canonical, "comment": comment, "view": self.dns_view}
-        if set_attr is not None:
-            set_attr = add_attr(set_attr)
-            payload[_EXT_ATTR_PROPERTY] = set_attr
-
-        return self.invoke("post", "record:cname", ok_codes=(200, 201, 400), json=payload)
+        model = { _NAME_PROPERTY: name, _CANONICAL_PROPERTY: canonical,
+                  _VIEW_PROPERTY: self.dns_view, _COMMENT_PROPERTY: comment,
+                  _EXT_ATTR_PROPERTY: extattrs }
+        model = self._make_model(model)
+        return self.invoke("post", "record:cname", ok_codes=(200, 201, 400), json=model)
 
     # ---------------------------------------------------------------------------
     # update_cname_record()
     # ---------------------------------------------------------------------------
-    def update_cname_record(self, current_cname, current_canonical, desired_cname, desired_canonical, comment=None, set_attr=None):
+    def update_cname_record(self, current_cname, current_canonical, desired_cname,
+                            desired_canonical, comment=None, extattrs=None):
         """
         Update alias for a cname entry
         """
+        object_ref = None
         cnames = self.get_cname(current_cname)
         
         for cname in cnames:
@@ -324,18 +364,18 @@ class Infoblox(object):
                 break
 
         if not object_ref:
-            self.module.exit_json(msg="IP {} and ptrdname {} pair was not found.".format(current_ip, current_name))
+            msg="IP {} and ptrdname {} pair was not found.".format(current_ip, current_name)
+            self.module.exit_json(msg=msg)
 
-        payload = {"name": desired_cname, "canonical": desired_canonical, "view": self.dns_view}
-        if comment is not None:
-            payload['comment'] = comment
-        if ttl is not None:
-            payload['ttl'] = ttl
-        if set_attr is not None:
-            set_attr = add_attr(set_attr)
-            payload[_EXT_ATTR_PROPERTY] = set_attr
+        if object_ref is None:
+            self.module.exit_json(msg="Name {} was not found.".format(current_name))
 
-        return self.invoke("put", object_ref, json=payload)
+        model = { _NAME_PROPERTY: desired_name, _CANONICAL_PROPERTY: desired_canonical,
+                  _VIEW_PROPERTY: self.dns_view, _COMMENT_PROPERTY: comment,
+                  _USE_TTL_PROPERTY: ttl is not None, _TTL_PROPERTY: ttl,
+                  _EXT_ATTR_PROPERTY: extattrs }
+        model = self._make_model(model)
+        return self.invoke("put", object_ref, json=model)
 
     # ---------------------------------------------------------------------------
     # get_a_record()
@@ -346,15 +386,17 @@ class Infoblox(object):
         """
         if not name:
             self.module.exit_json(msg="You must specify the option 'name'.")
-        return self.invoke("get", "record:a", params={
-            _NAME_PROPERTY: name, _VIEW_PROPERTY: self.dns_view, _RETURN_FIELDS_PROPERTY: [
-                _NAME_PROPERTY, _TTL_PROPERTY, _USE_TTL_PROPERTY, _COMMENT_PROPERTY, _VIEW_PROPERTY,
-                _IPV4_ADDRESS_PROPERTY]})
+
+        property_list = [_IPV4_ADDRESS_PROPERTY]
+        my_property = self._return_property(True, property_list)
+        params={ _NAME_PROPERTY: name, _VIEW_PROPERTY: self.dns_view,
+                 _RETURN_FIELDS_PROPERTY: my_property }
+        return self.invoke("get", "record:a", params=params )
 
     # ---------------------------------------------------------------------------
     # create_a_record()
     # ---------------------------------------------------------------------------
-    def create_a_record(self, name, address, comment, ttl=None, set_attr=None):
+    def create_a_record(self, name, address, comment, ttl=None, extattrs=None):
         """
         Creates an A record with the given name that points to the given IP address.
 
@@ -363,10 +405,14 @@ class Infoblox(object):
         """
         if not name or not address:
             self.module.exit_json(msg="You must specify the option 'name' and 'address'.")
-        if set_attr is not None:
-            set_attr = add_attr(set_attr)
+        if extattrs is not None:
+            extattrs = add_attr(extattrs)
 
-        model = _create_a_record_model(name, address, self.dns_view, comment, ttl, set_attr)
+        model = { _NAME_PROPERTY: name, _IPV4_ADDRESS_PROPERTY: address,
+                  _VIEW_PROPERTY: self.dns_view, _COMMENT_PROPERTY: comment,
+                  _USE_TTL_PROPERTY: ttl is not None, _TTL_PROPERTY: ttl,
+                  _EXT_ATTR_PROPERTY: extattrs }
+        model = self._make_model(model)
         return self.invoke("post", "record:a", ok_codes=(200, 201, 400), json=model)
 
     # ---------------------------------------------------------------------------
@@ -378,15 +424,17 @@ class Infoblox(object):
         """
         if not address:
             self.module.exit_json(msg="You must specify the option 'address'.")
-        return self.invoke("get", "record:ptr", params={
-            _IPV4_ADDRESS_PROPERTY: address , _VIEW_PROPERTY: self.dns_view, _RETURN_FIELDS_PROPERTY: [
-                _NAME_PROPERTY, _TTL_PROPERTY, _USE_TTL_PROPERTY, _COMMENT_PROPERTY, _VIEW_PROPERTY,
-                _IPV4_ADDRESS_PROPERTY, _PTRDNAME_PROPERTY]})
+
+        property_list = [_IPV4_ADDRESS_PROPERTY, _PTRDNAME_PROPERTY ]
+        my_property = self._return_property(True, property_list)
+        params={ _IPV4_ADDRESS_PROPERTY: address , _VIEW_PROPERTY: self.dns_view,
+                 _RETURN_FIELDS_PROPERTY: my_property }
+        return self.invoke("get", "record:ptr", params=params )
 
     # ---------------------------------------------------------------------------
-    # create_a_record()
+    # create_ptr_record()
     # ---------------------------------------------------------------------------
-    def create_ptr_record(self, name, address, comment, ttl=None, set_attr=None):
+    def create_ptr_record(self, name, address, comment=None, ttl=None, extattrs=None):
         """
         Creates an PTR record with the given name that points to the given IP address.
         For documentation on how to use the related part of the InfoBlox WAPI, refer to:
@@ -394,19 +442,24 @@ class Infoblox(object):
         """
         if not name or not address:
             self.module.exit_json(msg="You must specify the option 'name' and 'address'.")
-        if set_attr is not None:
-            set_attr = add_attr(set_attr)
+        if extattrs is not None:
+            extattrs = add_attr(extattrs)
 
-        model = _create_ptr_record_model(name, address, self.dns_view, comment, ttl, set_attr)
+        model = { _PTRDNAME_PROPERTY: name, _NAME_PROPERTY: name, _IPV4_ADDRESS_PROPERTY: address,
+                  _VIEW_PROPERTY: self.dns_view, _COMMENT_PROPERTY: comment,
+                  _USE_TTL_PROPERTY: ttl is not None, _TTL_PROPERTY: ttl,
+                  _EXT_ATTR_PROPERTY: extattrs }
+        model = self._make_model(model)
         return self.invoke("post", "record:ptr", ok_codes=(200, 201, 400), json=model)
 
     # ---------------------------------------------------------------------------
     # update_ptr_record()
     # ---------------------------------------------------------------------------
-    def update_ptr_record(self, current_address, current_name, desired_address, desired_name, set_attr=None):
+    def update_ptr_record(self, current_address, current_name, desired_address, desired_name, extattrs=None):
         """
         Update alias for a ptr record
         """
+        object_ref = None
         ptrs = self.get_ptr_record(current_address)
         for current_ptr in ptrs:
             if current_ptr.get('ptrdname') == current_name:
@@ -416,12 +469,157 @@ class Infoblox(object):
                 ttl = current_ptr.get('ttl')
                 break
 
-        if not object_ref:
+        if object_ref is None:
             self.module.exit_json(msg="IP {} and ptrdname {} pair was not found.".format(current_ip, current_name))
-        if set_attr is not None:
-            set_attr = add_attr(set_attr)
+        if extattrs is not None:
+            extattrs = add_attr(extattrs)
 
-        model = _create_ptr_record_model(desired_name, desired_address, self.dns_view, comment, ttl, set_attr)
+        model = _create_ptr_record_model(desired_name, desired_address, self.dns_view, comment, ttl, extattrs)
+        model = { _PTRDNAME_PROPERTY: desired_name, _NAME_PROPERTY: desired_name,
+                  _IPV4_ADDRESS_PROPERTY: desired_address,
+                  _USE_TTL_PROPERTY: ttl is not None, _TTL_PROPERTY: ttl,
+                  _EXT_ATTR_PROPERTY: extattrs }
+        model = self._make_model(model)
+        return self.invoke("put", object_ref, json=model)
+
+    # ---------------------------------------------------------------------------
+    # get_srv_record()
+    # ---------------------------------------------------------------------------
+    def get_srv_record(self, name):
+        """
+        Retrieves information about the SRV record with the given name.
+        """
+        if not name:
+            self.module.exit_json(msg="You must specify the option 'address'.")
+
+        property_list = [ _IPV4_ADDRESS_PROPERTY, _PTRDNAME_PROPERTY, _WEIGHT_PROPERTY,
+                          _PORT_PROPERTY, _PRIORITY_PROPERTY, _TARGET_PROPERTY ]
+        my_property = self._return_property(True, property_list)
+        params={ _NAME_PROPERTY: name, _VIEW_PROPERTY: self.dns_view,
+                 _RETURN_FIELDS_PROPERTY: my_property }
+        return self.invoke("get", "record:srv", params=params)
+
+    # ---------------------------------------------------------------------------
+    # create_srv_record()
+    # ---------------------------------------------------------------------------
+    def create_srv_record(self, name, port, priority, dns_target, weight, comment=None, ttl=None, extattrs=None):
+        """
+        Creates an SRV record with the name and .
+        For documentation on how to use the related part of the InfoBlox WAPI, refer to:
+        https://ipam.illinois.edu/wapidoc/objects/record.srv.html
+        """
+        if extattrs is not None:
+            extattrs = add_attr(extattrs)
+
+        model = { _NAME_PROPERTY: name, _PORT_PROPERTY: port,
+                  _PRIORITY_PROPERTY: priority, _TARGET_PROPERTY: dns_target,
+                  _WEIGHT_PROPERTY: weight,
+                  _VIEW_PROPERTY: self.dns_view, _COMMENT_PROPERTY: comment,
+                  _USE_TTL_PROPERTY: ttl is not None, _TTL_PROPERTY: ttl,
+                  _EXT_ATTR_PROPERTY: extattrs }
+        model = self._make_model(model)
+        return self.invoke("post", "record:srv", ok_codes=(200, 201, 400), json=model)
+
+    # ---------------------------------------------------------------------------
+    # update_srv_record()
+    # ---------------------------------------------------------------------------
+    def update_srv_record(self, current_name, desired_name, port, priority, dns_target, weight, comment=None, ttl=None, extattrs=None):
+        """
+        Update svr record for a named entry
+        """
+        object_ref = None
+        srvs = self.get_srv_record(current_name)
+
+        for srv in srvs:
+            if srv.get('name') == current_name:
+                key_out = srv.get('_ref')
+                object_ref = key_out.split(':')[0] + ':' + key_out.split(':')[1]
+                comment = srv.get('comment')
+                break
+
+        if not object_ref:
+            self.module.exit_json(msg="NAME {} was not found.".format(name))
+        if object_ref is None:
+            self.module.exit_json(msg="Name {} was not found.".format(current_name))
+
+        model = { _NAME_PROPERTY: name, _PORT_PROPERTY: port,
+                  _PRIORITY_PROPERTY: priority, _TARGET_PROPERTY: dns_target,
+                  _WEIGHT_PROPERTY: weight, _COMMENT_PROPERTY: comment,
+                  _USE_TTL_PROPERTY: ttl is not None, _TTL_PROPERTY: ttl,
+                  _EXT_ATTR_PROPERTY: extattrs }
+        model = self._make_model(model)
+        return self.invoke("put", object_ref, json=model)
+
+    # ---------------------------------------------------------------------------
+    # get_txt_record()
+    # ---------------------------------------------------------------------------
+    def get_txt_record(self, name):
+        """
+        Retrieves information about the PTR record with the given name.
+        """
+        if not name:
+            self.module.exit_json(msg="You must specify the option 'name'.")
+
+        property_list = [ _IPV4_ADDRESS_PROPERTY, _COMMENT_PROPERTY, _TXT_PROPERTY ]
+        my_property = self._return_property(True, property_list)
+        params={ _NAME_PROPERTY: name, _VIEW_PROPERTY: self.dns_view,
+                 _RETURN_FIELDS_PROPERTY: my_property }
+        return self.invoke("get", "record:txt", params=params)
+
+    # ---------------------------------------------------------------------------
+    # create_txt_record()
+    # ---------------------------------------------------------------------------
+    def create_txt_record(self, name, txt, comment, ttl=None, extattrs=None):
+        """
+        Creates an PTR record with the given name that points to the given IP address.
+        For documentation on how to use the related part of the InfoBlox WAPI, refer to:
+        https://ipam.illinois.edu/wapidoc/objects/record.txt.html
+        """
+        if not name or not txt:
+            self.module.exit_json(msg="You must specify the option 'name' and 'txt'.")
+        if extattrs is not None:
+            extattrs = add_attr(extattrs)
+
+        model = _create_txt_record_model(name, txt, self.dns_view, comment, ttl, extattrs)
+        return self.invoke("post", "record:txt", ok_codes=(200, 201, 400), json=model)
+
+    # ---------------------------------------------------------------------------
+    # update_txt_record()
+    # ---------------------------------------------------------------------------
+    def update_txt_record(self, current_name, desired_name, desired_text, **kwargs):
+        """
+        Update alias for a txt record
+        """
+        object_ref = None
+        if kwargs is not None:
+            current_text = kwargs.get('current_text')
+            first_found = kwargs.get('first_found')
+            comment = kwargs.get('comment')
+            extattrs = kwargs.get('current_text')
+
+        if first_found is not None and current_text is not None:
+            self.module.exit_json(msg="Please Specify either current_text or first_found, but not both.")
+
+        txts = self.get_txt_record(current_name)
+        if current_text:
+            for index, current_txt in entxts:
+                if current_txt.get('name') == current_name and current_txt.get('text') == current_text:
+                    my_entry = index
+        else:
+            my_entry = 0
+
+        used_txt = txts[my_entry]
+        key_out = used_txt.get('_ref')
+        object_ref = key_out.split(':')[0] + ':' + key_out.split(':')[1]
+        comment = used_txt.get('comment')
+        ttl = used_txt.get('ttl')
+
+        if object_ref is None:
+            self.module.exit_json(msg="Name {} was not found.".format(current_name))
+        if extattrs is not None:
+            extattrs = add_attr(extattrs)
+
+        model = _create_txt_record_model(desired_name, desired_text, self.dns_view, comment, ttl, extattrs)
         return self.invoke("put", object_ref, json=model)
 
     # ---------------------------------------------------------------------------
@@ -438,14 +636,14 @@ class Infoblox(object):
     # ---------------------------------------------------------------------------
     # update_host_alias()
     # ---------------------------------------------------------------------------
-    def update_host_alias(self, object_ref, alias, set_attr=None):
+    def update_host_alias(self, object_ref, alias, extattrs=None):
         """
         Update alias for a host
         """
         if not object_ref:
             self.module.exit_json(msg="Object _ref required!")
-        if set_attr is not None:
-            set_attr = add_attr(set_attr)
+        if extattrs is not None:
+            extattrs = add_attr(extattrs)
         return self.invoke("put", object_ref, json=alias)
 
     # ---------------------------------------------------------------------------
@@ -463,7 +661,7 @@ class Infoblox(object):
     # ---------------------------------------------------------------------------
     # create_host_record()
     # ---------------------------------------------------------------------------
-    def create_host_record(self, host, network_ref, address, comment, set_attr=None):
+    def create_host_record(self, host, network_ref, address, comment, extattrs=None):
         """
         Add host in infoblox by using rest api
         """
@@ -475,16 +673,56 @@ class Infoblox(object):
             payload = {"name": host, "ipv4addrs": [{"ipv4addr": address}], "view": self.dns_view, "comment": comment}
         else:
             raise Exception("Function options missing!")
-        if set_attr is not None:
-            set_attr = add_attr(set_attr)
-            payload[_EXT_ATTR_PROPERTY] = set_attr
+        if extattrs is not None:
+            extattrs = add_attr(extattrs)
+            payload[_EXT_ATTR_PROPERTY] = extattrs
 
         return self.invoke("post", "record:host?_return_fields=ipv4addrs", ok_codes=(200, 201, 400), json=payload)
 
     # ---------------------------------------------------------------------------
+    # update_host_record()
+    # ---------------------------------------------------------------------------
+    def update_host_record(self, current_name, current_address, desired_name, desired_address, comment=None, extattrs=None):
+        """
+        Update a host record
+        """
+        object_ref = None
+        hosts = self.get_host_by_name(current_name)
+        for current_host in hosts:
+            if current_host.get('name') == current_name:
+                key_out = current_host.get('_ref')
+                object_ref = key_out.split(':')[0] + ':' + key_out.split(':')[1]
+                comment = current_host.get('comment')
+                ttl = current_host.get('ttl')
+                addrs = current_host.get('ipv4addrs')
+                break
+
+        if object_ref is None:
+            self.module.exit_json(msg="IP {} and ptrdname {} pair was not found.".format(current_ip, current_name))
+        if extattrs is not None:
+            extattrs = add_attr(extattrs)
+
+        if current_address != desired_address:
+            addr_object_ref = None
+            if addrs is not None:
+                for addr in addrs:
+                    if addr.get('ipv4addr') == current_address:
+                        key_out = current_host.get('_ref')
+                        addr_object_ref = key_out.split(':')[0] + ':' + key_out.split(':')[1]
+                        break
+            if addr_object_ref is None:
+                self.module.exit_json(msg="IP {} was not found.".format(current_address))
+            addr_model = {"ipv4addrs": [{"ipv4addr": desired_address}]}
+            self.invoke("put", object_ref, json=addr_model)
+
+        model = _create_host_record_model(desired_name, self.dns_view, comment, ttl, extattrs)
+        return self.invoke("put", object_ref, json=model)
+
+
+    # ---------------------------------------------------------------------------
     # create_ipv6_host_record()
     # ---------------------------------------------------------------------------
-    def create_ipv6_host_record(self, host, network, address, comment, set_attr=None):
+    def create_ipv6_host_record(self, host, network, address, comment, extattrs=None):
         """
         Add host in infoblox by using rest api
         """
@@ -498,9 +736,9 @@ class Infoblox(object):
         else:
             raise Exception("Function options missing!")
 
-        if set_attr is not None:
-            set_attr = add_attr(set_attr)
-            payload[_EXT_ATTR_PROPERTY] = set_attr
+        if extattrs is not None:
+            extattrs = add_attr(extattrs)
+            payload[_EXT_ATTR_PROPERTY] = extattrs
 
         return self.invoke("post", "record:host?_return_fields=ipv6addrs", ok_codes=(200, 201, 400), json=payload)
 
@@ -553,7 +791,33 @@ def add_attr(attributes):
             self.module.exit_json(msg="A dict was sent with more then one key/val pair. Please use {key:val } only .")
     return attr
 
-def _create_ptr_record_model(name, address, view, comment, ttl=None, extattr=None):
+def _create_srv_record_model(name, port, priority, dns_target, weight, comment, ttl=None, extattr=None):
+    """
+    Creates a JSON model of an A record with the given properties, using the same keys as used by the WAPI.
+    :param name: the domain name
+    :param address: the IP address of the record
+    :param comment: an associated comment
+    :param ttl: the TTL in seconds or `None` if the TTL is to be inherited
+    :return: the created model
+    """
+    model = {
+        _NAME_PROPERTY: name,
+        _PORT_PROPERTY: port,
+        _PRIORITY_PROPERTY: priority,
+        _TARGET_PROPERTY: dns_target,
+        _WEIGHT_PROPERTY: weight,
+        _USE_TTL_PROPERTY: ttl is not None
+    }
+    if ttl is not None:
+        model[_TTL_PROPERTY] = int(ttl)
+    if extattr is not None:
+        model[_EXT_ATTR_PROPERTY] = extattr
+    if comment is not None:
+        model[_COMMENT_PROPERTY] = comment
+    return model
+
+
+def _create_host_record_model(name, view, comment, ttl=None, extattr=None):
     """
     Creates a JSON model of an A record with the given properties, using the same keys as used by the WAPI.
     :param name: the domain name
@@ -564,10 +828,7 @@ def _create_ptr_record_model(name, address, view, comment, ttl=None, extattr=Non
     :return: the created model
     """
     model = {
-        _PTRDNAME_PROPERTY: name,
         _NAME_PROPERTY: name,
-        _IPV4_ADDRESS_PROPERTY: address,
-        _COMMENT_PROPERTY: comment,
         _VIEW_PROPERTY: view,
         _USE_TTL_PROPERTY: ttl is not None
     }
@@ -575,9 +836,11 @@ def _create_ptr_record_model(name, address, view, comment, ttl=None, extattr=Non
         model[_TTL_PROPERTY] = int(ttl)
     if extattr is not None:
         model[_EXT_ATTR_PROPERTY] = extattr
+    if comment is not None:
+        model[_COMMENT_PROPERTY] = comment
     return model
 
-def _create_a_record_model(name, address, view, comment, ttl=None, extattr=None):
+def _create_txt_record_model(name, txt, view, comment, ttl=None, extattr=None):
     """
     Creates a JSON model of an A record with the given properties, using the same keys as used by the WAPI.
     :param name: the domain name
@@ -589,17 +852,17 @@ def _create_a_record_model(name, address, view, comment, ttl=None, extattr=None)
     """
     model = {
         _NAME_PROPERTY: name,
-        _IPV4_ADDRESS_PROPERTY: address,
-        _COMMENT_PROPERTY: comment,
+        _TXT_PROPERTY: txt,
         _VIEW_PROPERTY: view,
         _USE_TTL_PROPERTY: ttl is not None
     }
     if ttl is not None:
         model[_TTL_PROPERTY] = int(ttl)
-    if ext_attr is not None:
-        model[_EXT_ATTR_PROPERTY] = ext_attr
+    if extattr is not None:
+        model[_EXT_ATTR_PROPERTY] = extattr
+    if comment is not None:
+        model[_COMMENT_PROPERTY] = comment
     return model
-
 
 def _are_records_equivalent(a_record_1, a_record_2):
     """
@@ -661,7 +924,7 @@ def main():
             api_version=dict(required=False, default="1.7.1"),
             dns_view=dict(required=False, default="default"),
             net_view=dict(required=False, default="default"),
-            set_attr=dict(required=False, default=None),
+            extattrs=dict(required=False, default=None),
             ttl=dict(required=False)
         ),
         mutually_exclusive=[
@@ -696,7 +959,7 @@ def main():
     alias = module.params["alias"]
     attr_name = module.params["attr_name"]
     attr_value = module.params["attr_value"]
-    set_attr = module.params["set_attr"]
+    extattrs = module.params["extattrs"]
     cname = module.params["cname"]
     canonical = module.params["canonical"]
     comment = module.params["comment"]
@@ -863,7 +1126,7 @@ def main():
             module.exit_json(changed=False, result=a_records)
         else:
             for address in addresses_of_a_records_to_create:
-                infoblox.create_a_record(name, address, comment, ttl, set_attr)
+                infoblox.create_a_record(name, address, comment, ttl, extattrs)
 
             # Validation
             set_a_records = infoblox.get_a_record(name)
