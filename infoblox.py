@@ -10,6 +10,10 @@ try:
 except ImportError:
     HAS_REQUESTS = False
 
+ANSIBLE_METADATA = {'metadata_version': '1.0',
+                    'status': ['preview'],
+                    'supported_by': 'community'}a
+
 DOCUMENTATION = """
 module: infoblox
 short_description: manage Infoblox via Web API
