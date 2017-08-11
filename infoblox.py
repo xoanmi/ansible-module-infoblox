@@ -2,12 +2,8 @@
 from ansible.module_utils.basic import AnsibleModule
 from copy import copy
 
-try:
-    import requests
-    requests.packages.urllib3.disable_warnings()
-    HAS_REQUESTS = True
-except ImportError:
-    HAS_REQUESTS = False
+from __future__ import absolute_import, division, print_function
+__metaclass__ = type
 
 ANSIBLE_METADATA = {'metadata_version': '1.0',
                     'status': ['preview'],
@@ -186,6 +182,12 @@ _FQDN_PROPERTY = "fqdn"
 _FORWARD_TO_PROPERTY = "forward_to"
 _NETWORK_PROPERTY = "network"
 
+try:
+    import requests
+    requests.packages.urllib3.disable_warnings()
+    HAS_REQUESTS = True
+except ImportError:
+    HAS_REQUESTS = False
 
 # ---------------------------------------------------------------------------
 # Infoblox
