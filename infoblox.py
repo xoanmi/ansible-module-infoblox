@@ -141,22 +141,8 @@ hostname:
 result:
   description: result returned by the infoblox web API
   returned: success
-  type: json
-  samble:
-    {
-      "_ref": "record:host/DSFRerZfeSDRFWEC2RzLm5hZ2lvcw:test1.local/Private",
-      "extattrs": {},
-      "ipv4addrs": [
-        {
-          "_ref": "record:host_ipv4addr/ZG5zLmhvc3RdsDFSAfwRCwrcBNyamniMIOtMOMRNsdEwLjE2Mi4yMzguMjMyLg:192.168.1.1002/test1.local/Private",
-          "configure_for_dhcp": false,
-          "host": "test1.local",
-          "ipv4addr": "192.168.1.100"
-        }
-      ],
-      "name": "test1.local",
-      "view": "Private"
-    }
+  type: list
+  sample: [['...', '...'], ['...'], ['...']]
 """
 
 from ansible.module_utils.basic import AnsibleModule
