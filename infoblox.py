@@ -903,7 +903,6 @@ class Infoblox(object):
                  _VIEW_PROPERTY: self.dns_view, _COMMENT_PROPERTY: comment,
                  _EXT_ATTR_PROPERTY: extattrs}
         model = self._make_model(model)
-        print model
         return self.invoke("post", "zone_forward", ok_codes=(200, 201, 400), json=model)
 
     # ---------------------------------------------------------------------------
