@@ -1,7 +1,6 @@
 #!/usr/bin/python
+from ansible.module_utils.basic import AnsibleModule
 from copy import copy
-
-from ansible.module_utils.basic import AnsibleModule 
 
 try:
     import requests
