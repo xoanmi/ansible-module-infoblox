@@ -182,6 +182,9 @@ _IPV6_ADDRS_PROPERTY = "ipv6addr"
 _FQDN_PROPERTY = "fqdn"
 _FORWARD_TO_PROPERTY = "forward_to"
 _NETWORK_PROPERTY = "network"
+_NETWORK_CONTAINER_PROPERTY = "network_container"
+_NETWORK_VIEW_PROPERTY = "network_view"
+_DELEGATE_TO_PROPERTY = "delegate_to"
 
 
 # ---------------------------------------------------------------------------
@@ -203,7 +206,7 @@ class Infoblox(object):
                             _PORT_PROPERTY, _PRIORITY_PROPERTY, _WEIGHT_PROPERTY, _TARGET_PROPERTY,
                             _MAC_PROPERTY, _CANONICAL_PROPERTY, _IPV4_ADDRS_PROPERTY,
                             _IPV6_ADDRS_PROPERTY, _FQDN_PROPERTY, _FORWARD_TO_PROPERTY,
-                            _NETWORK_PROPERTY ]
+                            _NETWORK_PROPERTY, _NETWORK_VIEW_PROPERTY, _DELEGATE_TO_PROPERTY ]
 
     def invoke(self, method, tail, ok_codes=(200,), **params):
         """
@@ -234,7 +237,7 @@ class Infoblox(object):
     def _make_model(self, model_dict):
         return_model = {}
         for model in self.model_list:
-            if model_dict.get(model):
+            if model_dict.get(model) or model_dict.get(model) is False:
                 return_model[model] = model_dict.get(model)
         return return_model
 
@@ -250,7 +253,7 @@ class Infoblox(object):
         """
         if not network:
             self.module.exit_json(msg="You must specify the option 'network'.")
-        params = {"network": network, "network_view": self.net_view}
+        params = {_NETWORK_PROPERTY: network, _NETWORK_VIEW_PROPERTY: self.net_view}
         return self.invoke("get", "network", params=params)
 
     # ---------------------------------------------------------------------------
@@ -266,7 +269,7 @@ class Infoblox(object):
             self.module.exit_json(msg="You must specify the option 'start_addr.")
         if not end_addr:
             self.module.exit_json(msg="You must specify the option 'end_addr.")
-        params = {"start_addr": start_addr, "end_addr": end_addr, "network_view": self.net_view}
+        params = {"start_addr": start_addr, "end_addr": end_addr, _NETWORK_VIEW_PROPERTY: self.net_view}
         return self.invoke("get", "range", params=params)
 
     # ---------------------------------------------------------------------------
@@ -280,7 +283,7 @@ class Infoblox(object):
         """
         if not network:
             self.module.exit_json(msg="You must specify the option 'network'.")
-        params={"network": network, "network_view": self.net_view}
+        params={_NETWORK_PROPERTY: network, _NETWORK_VIEW_PROPERTY: self.net_view}
         return self.invoke("get", "ipv6network", params=params)
 
     # ---------------------------------------------------------------------------
@@ -357,11 +360,18 @@ class Infoblox(object):
     # ---------------------------------------------------------------------------
     # update_cname_record()
     # ---------------------------------------------------------------------------
-    def update_cname_record(self, current_cname, current_canonical, desired_cname,
-                            desired_canonical, comment=None, extattrs=None):
+    def update_cname_record(self, desired_cname, desired_canonical, current, comment=None, extattrs=None):
         """
         Update alias for a cname entry
         """
+        if not isinstance(current, dict):
+            module.fail_json(msg="The 'current' check is not a dict")
+        elif not current.get('cname') or not current.get('canonical'):
+            module.fail_json(msg="The 'current' dict must contain a 'canonical' and 'cname' key")
+        else:
+            current_cname = current.get('cname')
+            current_canonical = current.get('canonical')
+
         object_ref = None
         cnames = self.get_cname(current_cname)
         
@@ -379,6 +389,8 @@ class Infoblox(object):
 
         if object_ref is None:
             self.module.exit_json(msg="Name {} was not found.".format(current_name))
+        if extattrs is not None:
+            extattrs = add_attr(extattrs)
 
         model = { _NAME_PROPERTY: desired_name, _CANONICAL_PROPERTY: desired_canonical,
                   _VIEW_PROPERTY: self.dns_view, _COMMENT_PROPERTY: comment,
@@ -406,7 +418,7 @@ class Infoblox(object):
     # ---------------------------------------------------------------------------
     # create_a_record()
     # ---------------------------------------------------------------------------
-    def create_a_record(self, name, address, comment, ttl=None, extattrs=None):
+    def create_a_record(self, name, address, comment=None, ttl=None, extattrs=None):
         """
         Creates an A record with the given name that points to the given IP address.
 
@@ -424,6 +436,47 @@ class Infoblox(object):
                   _EXT_ATTR_PROPERTY: extattrs }
         model = self._make_model(model)
         return self.invoke("post", "record:a", ok_codes=(200, 201, 400), json=model)
+
+    # ---------------------------------------------------------------------------
+    # update_a_record()
+    # ---------------------------------------------------------------------------
+    def update_a_record(self, desired_name, desired_address, current, comment=None, ttl=None, extattrs=None):
+        """
+        Update an A record
+        """
+        if not isinstance(current, dict):
+            module.fail_json(msg="The 'current' check is not a dict")
+        elif not current.get('name') or not current.get('address'):
+            module.fail_json(msg="The 'current' dict must contain a 'name' and 'address' key")
+        else:
+            current_name = current.get('name')
+            current_address = current.get('address')
+
+        object_ref = None
+        a_records = self.get_a_record(current_name)
+
+        for a_record in a_records:
+            if a_record.get('name') == current_name:
+                key_out = a_record.get('_ref')
+                object_ref = key_out.split(':')[0] + ':' + key_out.split(':')[1]
+                break
+
+        if not object_ref:
+            msg="IP {} and ptrdname {} pair was not found.".format(current_ip, current_name)
+            self.module.exit_json(msg=msg)
+
+        if object_ref is None:
+            self.module.exit_json(msg="Name {} was not found.".format(current_name))
+        if extattrs is not None:
+            extattrs = add_attr(extattrs)
+
+        model = { _NAME_PROPERTY: desired_name, _IPV4_ADDRESS_PROPERTY: desired_address,
+                  _VIEW_PROPERTY: self.dns_view, _COMMENT_PROPERTY: comment,
+                  _USE_TTL_PROPERTY: ttl is not None, _TTL_PROPERTY: ttl,
+                  _EXT_ATTR_PROPERTY: extattrs }
+        model = self._make_model(model)
+        return self.invoke("put", object_ref, json=model)
+
 
     # ---------------------------------------------------------------------------
     # get_ptr_record()
@@ -465,18 +518,24 @@ class Infoblox(object):
     # ---------------------------------------------------------------------------
     # update_ptr_record()
     # ---------------------------------------------------------------------------
-    def update_ptr_record(self, current_address, current_name, desired_address, desired_name, extattrs=None):
+    def update_ptr_record(self, desired_address, desired_name, current, comment=None, ttl=None, extattrs=None):
         """
         Update alias for a ptr record
         """
+        if not isinstance(current, dict):
+            module.fail_json(msg="The 'current' check is not a dict")
+        elif not current.get('name') or not current.get('address'):
+            module.fail_json(msg="The 'current' dict must contain a 'address' and 'name' key")
+        else:
+            current_name = current.get('name')
+            current_address = current.get('address')
+
         object_ref = None
         ptrs = self.get_ptr_record(current_address)
         for current_ptr in ptrs:
             if current_ptr.get('ptrdname') == current_name:
                 key_out = current_ptr.get('_ref')
                 object_ref = key_out.split(':')[0] + ':' + key_out.split(':')[1]
-                comment = current_ptr.get('comment')
-                ttl = current_ptr.get('ttl')
                 break
 
         if object_ref is None:
@@ -511,12 +570,24 @@ class Infoblox(object):
     # ---------------------------------------------------------------------------
     # create_srv_record()
     # ---------------------------------------------------------------------------
-    def create_srv_record(self, name, port, priority, dns_target, weight, comment=None, ttl=None, extattrs=None):
+    def create_srv_record(self, name, srv_attr, comment=None, ttl=None, extattrs=None):
         """
         Creates an SRV record with the name and .
         For documentation on how to use the related part of the InfoBlox WAPI, refer to:
         https://ipam.illinois.edu/wapidoc/objects/record.srv.html
         """
+
+        if not isinstance(srv_attr, dict):
+            module.fail_json(msg="The variable 'srv_attr' is not a dict")
+        for attr in ['port', 'priority', 'dns_target', 'weight' ]:
+            if not srv_attr.get(attr):
+                module.fail_json(msg="The 'srv_attr' dict must contain a '{}' key".format(attr))
+
+        port = srv_attr.get('port')
+        priority = srv_attr.get('priority')
+        dns_target = srv_attr.get('dns_target')
+        weight = srv_attr.get('weight')
+
         if extattrs is not None:
             extattrs = add_attr(extattrs)
 
@@ -532,10 +603,29 @@ class Infoblox(object):
     # ---------------------------------------------------------------------------
     # update_srv_record()
     # ---------------------------------------------------------------------------
-    def update_srv_record(self, current_name, desired_name, port, priority, dns_target, weight, comment=None, ttl=None, extattrs=None):
+    def update_srv_record(self, desired_name, srv_attr, current, comment=None, ttl=None, extattrs=None):
         """
         Update svr record for a named entry
         """
+
+        if not isinstance(current, dict):
+            module.fail_json(msg="The 'current' check is not a dict")
+        elif not current.get('name'):
+            module.fail_json(msg="The 'current' dict must contain a 'name' key")
+        else:
+            current_name = current.get('name')
+
+        if not isinstance(srv_attr, dict):
+            module.fail_json(msg="The variable 'srv_attr' is not a dict")
+        #for attr in ['port', 'priority', 'dns_target', 'weight' ]:
+        #    if not srv_attr.get(attr):
+        #        module.fail_json(msg="The 'srv_attr' dict must contain a '{}' key".format(attr))
+
+        port = srv_attr.get('port')
+        priority = srv_attr.get('priority')
+        dns_target = srv_attr.get('dns_target')
+        weight = srv_attr.get('weight')
+
         object_ref = None
         srvs = self.get_srv_record(current_name)
 
@@ -548,6 +638,9 @@ class Infoblox(object):
 
         if object_ref is None:
             self.module.exit_json(msg="Name {} was not found.".format(current_name))
+
+        if extattrs is not None:
+            extattrs = add_attr(extattrs)
 
         model = { _NAME_PROPERTY: name, _PORT_PROPERTY: port,
                   _PRIORITY_PROPERTY: priority, _TARGET_PROPERTY: dns_target,
@@ -597,19 +690,26 @@ class Infoblox(object):
     # ---------------------------------------------------------------------------
     # update_txt_record()
     # ---------------------------------------------------------------------------
-    def update_txt_record(self, current_name, desired_name, desired_text, **kwargs):
+    def update_txt_record(self, desired_name, desired_text, current, comment=None, ttl=None, extattrs=None):
         """
         Update alias for a txt record
         """
+
+        if not isinstance(current, dict):
+            module.fail_json(msg="The 'current' check is not a dict")
+        elif not current.get('name'):
+            module.fail_json(msg="The 'current' dict must contain a 'name' key")
+        else:
+            current_name = current.get('name')
+
         object_ref = None
-        if kwargs is not None:
-            current_text = kwargs.get('current_text')
-            first_found = kwargs.get('first_found')
-            comment = kwargs.get('comment')
-            extattrs = kwargs.get('current_text')
+        current_text = current.get('current_text')
+        first_found = current.get('first_found')
 
         if first_found is not None and current_text is not None:
             self.module.exit_json(msg="Please Specify either current_text or first_found, but not both.")
+        elif first_found is None and current_text is None:
+            self.module.exit_json(msg="The 'current' dict must have either 'current_text' or 'first_found' as a key.")
 
         txts = self.get_txt_record(current_name)
         if current_text:
@@ -686,7 +786,6 @@ class Infoblox(object):
 
         if extattrs is not None:
             extattrs = add_attr(extattrs)
-            payload[_EXT_ATTR_PROPERTY] = extattrs
 
         if network_ref:
             address = "func:nextavailableip:" + network_ref
@@ -706,10 +805,18 @@ class Infoblox(object):
     # ---------------------------------------------------------------------------
     # update_host_record()
     # ---------------------------------------------------------------------------
-    def update_host_record(self, current_name, current_address, desired_name, desired_address, comment=None, ttl=None, extattrs=None):
+    def update_host_record(self, desired_name, desired_address, current, comment=None, ttl=None, extattrs=None):
         """
         Update a host record
         """
+        if not isinstance(current, dict):
+            module.fail_json(msg="The 'current' check is not a dict")
+        elif not current.get('name') or not current.get('address'):
+            module.fail_json(msg="The 'current' dict must contain a 'name' and 'address' key")
+        else:
+            current_name = current.get('name')
+            current_address = current.get('address')
+
         object_ref = None
         hosts = self.get_host_by_name(current_name)
         for current_host in hosts:
@@ -796,7 +903,7 @@ class Infoblox(object):
         Add FQDN in infoblox by using rest api
         """
         if fqdn is None:
-            self.module.exit_json(msg="You must specify the option 'name'.")
+            self.module.exit_json(msg="You must specify the option 'fqdn'.")
 
         if extattrs is not None:
             extattrs = add_attr(extattrs)
@@ -825,11 +932,13 @@ class Infoblox(object):
                 break
 
         if not object_ref:
-            msg="IP {} and ptrdname {} pair was not found.".format(current_ip, current_name)
+            msg="FQDN {} was not found.".format(current_fqdn)
             self.module.exit_json(msg=msg)
 
         if object_ref is None:
             self.module.exit_json(msg="Name {} was not found.".format(current_name))
+        if extattrs is not None:
+            extattrs = add_attr(extattrs)
 
         model = { _FQDN_PROPERTY: desired_name, 
                   _VIEW_PROPERTY: self.dns_view, _COMMENT_PROPERTY: comment,
@@ -852,7 +961,7 @@ class Infoblox(object):
         return self.invoke("get", "zone_forward", params=params)
 
     # ---------------------------------------------------------------------------
-    # create_auth_zone()
+    # create_forward_zone()
     # ---------------------------------------------------------------------------
     def create_forward_zone(self, fqdn, name, address,
                          comment=None, ttl=None, extattrs=None):
@@ -872,17 +981,24 @@ class Infoblox(object):
                   _VIEW_PROPERTY: self.dns_view, _COMMENT_PROPERTY: comment,
                   _EXT_ATTR_PROPERTY: extattrs }
         model = self._make_model(model)
-        print model
         return self.invoke("post", "zone_forward", ok_codes=(200, 201, 400), json=model)
 
     # ---------------------------------------------------------------------------
     # update_forward_zone()
     # ---------------------------------------------------------------------------
-    def update_forward_zone(self, current_fqdn, desired_name, desired_address,
+    def update_forward_zone(self, desired_name, desired_address, current,
                          comment=None, ttl=None, extattrs=None):
         """
         Update forward zone entry
         """
+        if not isinstance(current, dict):
+            module.fail_json(msg="The 'current' check is not a dict")
+        elif not current.get('fqdn'):
+            module.fail_json(msg="The 'current' dict must contain a 'name' and 'address' key")
+        else:
+            current_fqdn = current.get('fqdn')
+
+
         object_ref = None
         fqdns = self.get_forward_zone(current_fqdn)
 
@@ -898,6 +1014,8 @@ class Infoblox(object):
 
         if object_ref is None:
             self.module.exit_json(msg="FQDN {} was not found.".format(current_fqdn))
+        if extattrs is not None:
+            extattrs = add_attr(extattrs)
 
         forward_to = [{_NAME_PROPERTY: desired_name, "address": desired_address}]
         model = { _FORWARD_TO_PROPERTY: forward_to,
@@ -907,20 +1025,114 @@ class Infoblox(object):
         return self.invoke("put", object_ref, json=model)
 
     # ---------------------------------------------------------------------------
-    # get_ipam_network()
+    # get_delegated_zone()
     # ---------------------------------------------------------------------------
-    def get_ipam_network_container(self, network):
+    def get_delegated_zone(self, fqdn):
+        """
+        Search for Authoritative Zone in infoblox by fqdn
+        """
+        if fqdn is None:
+            self.module.exit_json(msg="You must specify the option 'name'.")
+
+        params={ _FQDN_PROPERTY: fqdn, _VIEW_PROPERTY: self.dns_view}
+        return self.invoke("get", "zone_delegated", params=params)
+
+    # ---------------------------------------------------------------------------
+    # create_delegated_zone()
+    # ---------------------------------------------------------------------------
+    def create_delegated_zone(self, fqdn, delegate_to,
+                         comment=None, ttl=None, extattrs=None):
+        """
+        Add FQDN in infoblox by using rest api
+        """
+        if fqdn is None:
+            self.module.exit_json(msg="You must specify the option 'name'.")
+
+        if isinstance(delegate_to, dict):
+            copy_delegate_to = delegate_to
+            delegate_to = []
+            delegate_to.append(copy_delegate_to)
+        if not isinstance(delegate_to, list):
+            self.module.exit_json(msg="delegate_to was not a list or a dict.")
+
+        for delegate in delegate_to:
+            if not isinstance(delegate, dict):
+                self.module.exit_json(msg="Each element of delegate_to must be a dict, {} is not.".format(delegate))
+            if delegate.get('name') and delegate.get('address'):
+                pass
+            else:
+                self.module.exit_json(msg="Each element of delegate_to must have a 'name' "\
+                                           "and address 'key', which is the only supported method")
+
+        if extattrs is not None:
+            extattrs = add_attr(extattrs)
+
+        model = { _FQDN_PROPERTY: fqdn, _DELEGATE_TO_PROPERTY: delegate_to,
+                  _VIEW_PROPERTY: self.dns_view, _COMMENT_PROPERTY: comment,
+                  _EXT_ATTR_PROPERTY: extattrs }
+        model = self._make_model(model)
+        return self.invoke("post", "zone_delegated", ok_codes=(200, 201, 400), json=model)
+
+    # ---------------------------------------------------------------------------
+    # get_network_container()
+    # ---------------------------------------------------------------------------
+    def get_network_container(self, network):
         """
         Search for IPAM network in infoblox by network
         """
         if network is None:
             self.module.exit_json(msg="You must specify the option 'network'.")
 
-        property_list = [ 'network_container', 'network_view', _NETWORK_PROPERTY ]
+        property_list = [ _NETWORK_CONTAINER_PROPERTY, _NETWORK_VIEW_PROPERTY, _NETWORK_PROPERTY ]
         my_property = self._return_property(False, property_list)
         params={ _NETWORK_PROPERTY: network,
                  _RETURN_FIELDS_PROPERTY: my_property }
         return self.invoke("get", "networkcontainer", params=params)
+
+    # ---------------------------------------------------------------------------
+    # create_network_container()
+    # ---------------------------------------------------------------------------
+    def create_network_container(self, network, comment=None, ttl=None, extattrs=None):
+        """
+        Creates an PTR record with the given name that points to the given IP address.
+        For documentation on how to use the related part of the InfoBlox WAPI, refer to:
+        https://ipam.illinois.edu/wapidoc/objects/record.ptr.html
+        """
+        if not network:
+            self.module.exit_json(msg="You must specify the option 'name' and 'address'.")
+        if extattrs is not None:
+            extattrs = add_attr(extattrs)
+
+        model = { _NETWORK_CONTAINER_PROPERTY: network, _NETWORK_PROPERTY: network,
+                  _COMMENT_PROPERTY: comment,
+                  _EXT_ATTR_PROPERTY: extattrs }
+        model = self._make_model(model)
+        return self.invoke("post", "networkcontainer", ok_codes=(200, 201, 400), json=model)
+
+    # ---------------------------------------------------------------------------
+    # update_network_container()
+    # ---------------------------------------------------------------------------
+    def update_network_container(self, current_network, comment=None, ttl=None, extattrs=None):
+        """
+        Update svr record for a named entry
+        """
+        object_ref = None
+        net_containers = self.get_network_container(current_network)
+
+        for net_container in net_containers:
+            if net_container.get(_NETWORK_PROPERTY) == current_network:
+                key_out = net_container.get('_ref')
+                object_ref = key_out.split(':')[0]
+                break
+
+        if object_ref is None:
+            self.module.exit_json(msg="Name {} was not found.".format(current_network))
+        if extattrs is not None:
+            extattrs = add_attr(extattrs)
+
+        model = { _COMMENT_PROPERTY: comment, _EXT_ATTR_PROPERTY: extattrs }
+        model = self._make_model(model)
+        return self.invoke("put", object_ref, json=model)
 
     # ---------------------------------------------------------------------------
     # delete_object()
@@ -1007,10 +1219,14 @@ def main():
             username=dict(required=True),
             password=dict(required=True, no_log=True),
             action=dict(required=True, choices=[
-                "get_aliases", "get_cname", "get_a_record", "get_host", "get_network", "get_range", "get_next_available_ip",
-                "get_fixedaddress", "get_ipv6network", "get_ptr_record"
+                "get_aliases", "get_cname", "get_a_record", "get_host", "get_network", "get_range",
+                "get_next_available_ip", "get_fixedaddress", "get_ipv6network", "get_ptr_record",
+                "get_srv_record", "get_auth_zone", "get_forward_zone", "get_delegated_zone"
                 "add_alias", "add_cname", "add_host", "add_ipv6_host", "create_ptr_record",
-                "set_a_record", "set_name", "set_extattr",
+                "create_a_record", "create_srv_record", "create_auth_zone", "create_forward_zone",
+                "create_delegated_zone",
+                "set_a_record", "set_name", "set_extattr", "update_a_record", "update_srv_record",
+                "update_auth_zone", "update_forward_zone",
                 "delete_alias", "delete_cname", "delete_a_record", "delete_fixedaddress", "delete_host",
                 "reserve_next_available_ip"
             ]),
@@ -1026,7 +1242,12 @@ def main():
             attr_name=dict(required=False),
             attr_value=dict(required=False),
             cname=dict(required=False),
+            current=dict(required=False),
             canonical=dict(required=False),
+            srv_attr=dict(required=False),
+            text=dict(required=False),
+            fqdn=dict(required=False),
+            delgate_to=dict(required=False),
             comment=dict(required=False, default="Object managed by ansible-infoblox module"),
             api_version=dict(required=False, default="1.7.1"),
             dns_view=dict(required=False, default="default"),
@@ -1034,15 +1255,15 @@ def main():
             extattrs=dict(required=False, default=None),
             ttl=dict(required=False)
         ),
-        mutually_exclusive=[
-            ["network", "address"],
-            ["addresses", "address"],
-            ["host", "cname"]
-        ],
-        required_together=[
-            ["attr_name", "attr_value"],
+        #mutually_exclusive=[
+        #    ["network", "address"],
+        #    ["addresses", "address"],
+        #    ["host", "cname"]
+        #],
+        #required_together=[
+        #    ["attr_name", "attr_value"],
             # ["object_ref","name"]
-        ],
+        #],
         supports_check_mode=True,
     )
 
@@ -1071,9 +1292,13 @@ def main():
     cname = module.params["cname"]
     canonical = module.params["canonical"]
     comment = module.params["comment"]
+    current = module.params["current"]
     api_version = module.params["api_version"]
     dns_view = module.params["dns_view"]
     net_view = module.params["net_view"]
+    text = module.params["text"]
+    delegate_to = module.params["delegate_to"]
+    fqdn = module.params["fqdn"]
     ttl = module.params["ttl"]
 
     infoblox = Infoblox(module, server, username, password, api_version, dns_view, net_view)
@@ -1338,6 +1563,157 @@ def main():
                 module.exit_json(changed=True, result=result)
             else:
                 raise Exception()
+    elif action == "get_ptr_record":
+        result = infoblox.get_ptr_record(address)
+        if result:
+            module.exit_json(changed=True, result=result)
+        else:
+            raise Exception()
+    elif action == "create_ptr_record":
+        result = infoblox.create_ptr_record(name, address, comment, ttl, extattrs)
+        if result:
+            module.exit_json(changed=True, result=result)
+        else:
+            raise Exception()
+    elif action == "update_ptr_record":
+        result = infoblox.update_ptr_record(name, address, current, comment, ttl, extattrs)
+        if result:
+            module.exit_json(changed=True, result=result)
+        else:
+            raise Exception()
+    elif action == "update_cname_record":
+        result = infoblox.update_cname_record(cname, canonical, current, comment, ttl, extattrs)
+        if result:
+            module.exit_json(changed=True, result=result)
+        else:
+            raise Exception()
+    elif action == "get_a_record":
+        result = infoblox.get_a_record(name)
+        if result:
+            module.exit_json(changed=True, result=result)
+        else:
+            raise Exception()
+    elif action == "create_a_record":
+        result = infoblox.create_a_record(name, address, comment, ttl, extattrs)
+        if result:
+            module.exit_json(changed=True, result=result)
+        else:
+            raise Exception()
+    elif action == "update_a_record":
+        result = infoblox.update_a_record(name, address, current, comment, ttl, extattrs)
+        if result:
+            module.exit_json(changed=True, result=result)
+        else:
+            raise Exception()
+    elif action == "get_srv_record":
+        result = infoblox.get_srv_record(name)
+        if result:
+            module.exit_json(changed=True, result=result)
+        else:
+            raise Exception()
+    elif action == "create_srv_record":
+        result = infoblox.create_srv_record(name, srv_attr, comment, ttl, extattrs)
+        if result:
+            module.exit_json(changed=True, result=result)
+        else:
+            raise Exception()
+    elif action == "update_srv_record":
+        result = infoblox.update_srv_record(name, srv_attr, current, comment, ttl, extattrs)
+        if result:
+            module.exit_json(changed=True, result=result)
+        else:
+            raise Exception()
+    elif action == "get_txt_record":
+        result = infoblox.get_txt_record(name)
+        if result:
+            module.exit_json(changed=True, result=result)
+        else:
+            raise Exception()
+    elif action == "create_txt_record":
+        result = infoblox.create_txt_record(name, srv_attr, comment, ttl, extattrs)
+        if result:
+            module.exit_json(changed=True, result=result)
+        else:
+            raise Exception()
+    elif action == "update_txt_record":
+        result = infoblox.update_txt_record(name, srv_attr, current, comment, ttl, extattrs)
+        if result:
+            module.exit_json(changed=True, result=result)
+        else:
+            raise Exception()
+    elif action == "update_host_record":
+        result = infoblox.update_host_record(name, address, current, comment, ttl, extattrs)
+        if result:
+            module.exit_json(changed=True, result=result)
+        else:
+            raise Exception()
+    elif action == "get_network_container":
+        result = infoblox.get_network_container(network)
+        if result:
+            module.exit_json(changed=True, result=result)
+        else:
+            raise Exception()
+    elif action == "create_network_container":
+        result = infoblox.create_network_container(network, comment, ttl, extattrs)
+        if result:
+            module.exit_json(changed=True, result=result)
+        else:
+            raise Exception()
+    elif action == "update_network_container":
+        result = infoblox.update_network_container(network, comment, ttl, extattrs)
+        if result:
+            module.exit_json(changed=True, result=result)
+        else:
+            raise Exception()
+    elif action == "get_auth_zone":
+        result = infoblox.get_auth_zone(fqdn)
+        if result:
+            module.exit_json(changed=True, result=result)
+        else:
+            raise Exception()
+    elif action == "create_auth_zone":
+        result = infoblox.create_auth_zone(fqdn, comment, ttl, extattrs)
+        if result:
+            module.exit_json(changed=True, result=result)
+        else:
+            raise Exception()
+    elif action == "update_auth_zone":
+        result = infoblox.update_auth_zone(fqdn, comment, ttl, extattrs)
+        if result:
+            module.exit_json(changed=True, result=result)
+        else:
+            raise Exception()
+    elif action == "get_forward_zone":
+        result = infoblox.get_forward_zone(fqdn)
+        if result:
+            module.exit_json(changed=True, result=result)
+        else:
+            raise Exception()
+    elif action == "create_forward_zone":
+        result = infoblox.create_forward_zone(fqdn, name, address, comment, ttl, extattrs)
+        if result:
+            module.exit_json(changed=True, result=result)
+        else:
+            raise Exception()
+    elif action == "update_forward_zone":
+        result = infoblox.update_forward_zone(fqdn, name, address, current, comment, ttl, extattrs)
+        if result:
+            module.exit_json(changed=True, result=result)
+        else:
+            raise Exception()
+    elif action == "get_delegated_zone":
+        result = infoblox.get_delegated_zone(fqdn)
+        if result:
+            module.exit_json(changed=True, result=result)
+        else:
+            raise Exception()
+    elif action == "create_delegated_zone":
+        result = infoblox.create_delegated_zone(fqdn, delegate_to, comment, ttl, extattrs)
+        if result:
+            module.exit_json(changed=True, result=result)
+        else:
+            raise Exception()
+
 
 
 if __name__ == "__main__":
