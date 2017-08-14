@@ -328,6 +328,19 @@ class Infoblox(object):
         return self.invoke("get", "fixedaddress", params=params)
 
     # ---------------------------------------------------------------------------
+    # get_cname_object()
+    # ---------------------------------------------------------------------------
+    def get_cname_object(self, cname):
+        object_ref = None
+        cnames = self.get_cname(cname)
+        
+        _ref = cnames[0].get('_ref')
+        if _ref:
+            object_ref = _ref.split(':')[0] + ':' + _ref.split(':')[1]
+            canonical = cnames[0].get('canonical')
+        return object_ref, canonical
+        
+    # ---------------------------------------------------------------------------
     # get_cname()
     # ---------------------------------------------------------------------------
     def get_cname(self, cname):
@@ -352,6 +365,16 @@ class Infoblox(object):
         if extattrs is not None:
             extattrs = add_attr(extattrs)
 
+        object_ref, current_canonical = self.get_cname_object(cname)
+
+        if object_ref:
+            if current_canonical != canonical:
+                msg = 'Canonical name is {} and {} is not the same \
+                       please use update_cname_record'.format(current_canonical,canonical)
+                self.module.fail_json(msg=msg)
+                
+            self.module.exit_json(msg='CNAME Exists')
+
         model = { _NAME_PROPERTY: cname, _CANONICAL_PROPERTY: canonical,
                   _VIEW_PROPERTY: self.dns_view, _COMMENT_PROPERTY: comment,
                   _EXT_ATTR_PROPERTY: extattrs }
@@ -367,31 +390,19 @@ class Infoblox(object):
         """
         if not isinstance(current, dict):
             self.module.fail_json(msg="The 'current' check is not a dict")
-        elif not current.get('cname') or not current.get('canonical'):
-            self.module.fail_json(msg="The 'current' dict must contain a 'canonical' and 'cname' key")
+        elif not current.get('cname'):
+            self.module.fail_json(msg="The 'current' dict must contain a 'cname' key")
         else:
             current_cname = current.get('cname')
-            current_canonical = current.get('canonical')
 
-        object_ref = None
-        cnames = self.get_cname(current_cname)
-        
-        for cname in cnames:
-            if cname.get('name') == current_cname:
-                key_out = cname.get('_ref')
-                object_ref = key_out.split(':')[0] + ':' + key_out.split(':')[1]
-                comment = cname.get('comment')
-                ttl = cname.get('ttl')
-                break
-
-        if not object_ref:
-            msg="IP {} and ptrdname {} pair was not found.".format(current_ip, current_name)
-            self.module.fail_json(msg=msg)
-
-        if object_ref is None:
-            self.module.fail_json(msg="Name {} was not found.".format(current_name))
         if extattrs is not None:
             extattrs = add_attr(extattrs)
+
+        object_ref, current_canonical = self.get_cname_object(current_cname)
+        if object_ref is None:
+            self.module.fail_json(msg="Name {} was not found.".format(current_cname))
+        if current_canonical == desired_canonical:
+            self.module.exit_json(msg='Canonical Exists')
 
         model = { _NAME_PROPERTY: desired_cname, _CANONICAL_PROPERTY: desired_canonical,
                   _VIEW_PROPERTY: self.dns_view, _COMMENT_PROPERTY: comment,
@@ -399,6 +410,30 @@ class Infoblox(object):
                   _EXT_ATTR_PROPERTY: extattrs }
         model = self._make_model(model)
         return self.invoke("put", object_ref, json=model)
+
+    # ---------------------------------------------------------------------------
+    # delete_cname_record()
+    # ---------------------------------------------------------------------------
+    def delete_cname_record(self, cname):
+        """
+        Delete cname object
+        """
+        object_ref, _ = self.get_cname_object(current_cname)
+        return self.delete_object(object_ref)
+
+    # ---------------------------------------------------------------------------
+    # get_a_object()
+    # ---------------------------------------------------------------------------
+    def get_a_object(self, name, address):
+        object_ref = None
+        a_records = self.get_a_record(name)
+
+        for a_record in a_records:
+            if a_record.get(_IPV4_ADDRESS_PROPERTY) == address:
+                key_out = a_record.get('_ref')
+                object_ref = key_out.split(':')[0] + ':' + key_out.split(':')[1]
+                break
+        return object_ref
 
     # ---------------------------------------------------------------------------
     # get_a_record()
@@ -431,6 +466,10 @@ class Infoblox(object):
         if extattrs is not None:
             extattrs = add_attr(extattrs)
 
+        object_ref = self.get_a_object(name, address)
+        if object_ref:
+            self.module.exit_json(msg='A record Exists')
+
         model = { _NAME_PROPERTY: name, _IPV4_ADDRESS_PROPERTY: address,
                   _VIEW_PROPERTY: self.dns_view, _COMMENT_PROPERTY: comment,
                   _USE_TTL_PROPERTY: ttl is not None, _TTL_PROPERTY: ttl,
@@ -452,6 +491,10 @@ class Infoblox(object):
         else:
             current_name = current.get('name')
             current_address = current.get('address')
+
+        object_ref = self.get_a_object(desired_name, desired_address)
+        if object_ref:
+            self.module.exit_json(msg='A record Exists')
 
         object_ref = None
         a_records = self.get_a_record(current_name)
@@ -477,6 +520,32 @@ class Infoblox(object):
         model = self._make_model(model)
         return self.invoke("put", object_ref, json=model)
 
+    # ---------------------------------------------------------------------------
+    # delete_a_record()
+    # ---------------------------------------------------------------------------
+    def delete_a_record(self, name, address):
+        """
+        Delete a record object
+        """
+        object_ref = self.get_a_object(name, address)
+        if object_ref:
+            return self.delete_object(object_ref)
+        else:
+            self.module.exit_json(msg='Object deleted already')
+
+    # ---------------------------------------------------------------------------
+    # get_ptr_object()
+    # ---------------------------------------------------------------------------
+    def get_ptr_object(self, address, name):
+        object_ref = None
+        ptrs = self.get_ptr_record(address)
+
+        for ptr in ptrs:
+            if ptr.get('ptrdname') == name:
+                key_out = ptr.get('_ref')
+                object_ref = key_out.split(':')[0] + ':' + key_out.split(':')[1]
+                break
+        return object_ref
 
     # ---------------------------------------------------------------------------
     # get_ptr_record()
@@ -508,6 +577,10 @@ class Infoblox(object):
         if extattrs is not None:
             extattrs = add_attr(extattrs)
 
+        object_ref = self.get_ptr_object(address, name)
+        if object_ref:
+            self.module.exit_json(msg='PTR Exists')
+
         model = { _PTRDNAME_PROPERTY: name, _NAME_PROPERTY: name, _IPV4_ADDRESS_PROPERTY: address,
                   _VIEW_PROPERTY: self.dns_view, _COMMENT_PROPERTY: comment,
                   _USE_TTL_PROPERTY: ttl is not None, _TTL_PROPERTY: ttl,
@@ -530,6 +603,10 @@ class Infoblox(object):
             current_name = current.get('name')
             current_address = current.get('address')
 
+        object_ref = self.get_ptr_object(desired_address, desired_name)
+        if object_ref:
+            self.module.exit_json(msg='PTR Exists')
+
         object_ref = None
         ptrs = self.get_ptr_record(current_address)
         for current_ptr in ptrs:
@@ -550,6 +627,30 @@ class Infoblox(object):
         model = self._make_model(model)
         #self.module.fail_json(msg="MODEL {}".format(model))
         return self.invoke("put", object_ref, json=model)
+
+    # ---------------------------------------------------------------------------
+    # delete_ptr_record()
+    # ---------------------------------------------------------------------------
+    def delete_ptr_record(self, name, address):
+        """
+        Delete cname object
+        """
+        object_ref = self.get_ptr_object(address, name)
+        if object_ref:
+            return self.delete_object(object_ref)
+        else:
+            self.module.exit_json(msg='Object deleted already')
+
+    # ---------------------------------------------------------------------------
+    # get_srv_object()
+    # ---------------------------------------------------------------------------
+    def get_srv_object(self, name):
+        object_ref = None
+        srvs = self.get_srv_record(name)
+        if srvs:
+            key_out = srvs[0].get('_ref')
+            object_ref = key_out.split(':')[0] + ':' + key_out.split(':')[1]
+        return object_ref
 
     # ---------------------------------------------------------------------------
     # get_srv_record()
@@ -583,6 +684,10 @@ class Infoblox(object):
         for attr in ['port', 'priority', 'dns_target', 'weight' ]:
             if not srv_attr.get(attr):
                 self.module.fail_json(msg="The 'srv_attr' dict must contain a '{}' key".format(attr))
+
+        object_ref = self.get_srv_object(name)
+        if object_ref:
+            self.module.exit_json(msg='SRV Exists')
 
         port = srv_attr.get('port')
         priority = srv_attr.get('priority')
@@ -645,6 +750,19 @@ class Infoblox(object):
         return self.invoke("put", object_ref, json=model)
 
     # ---------------------------------------------------------------------------
+    # delete_srv_record()
+    # ---------------------------------------------------------------------------
+    def delete_srv_record(self, name):
+        """
+        Delete srv record object
+        """
+        object_ref = self.get_srv_object(name)
+        if object_ref:
+            return self.delete_object(object_ref)
+        else:
+            self.module.exit_json(msg='Object deleted already')
+
+    # ---------------------------------------------------------------------------
     # get_txt_record()
     # ---------------------------------------------------------------------------
     def get_txt_record(self, name):
@@ -675,6 +793,12 @@ class Infoblox(object):
         if extattrs is not None:
             extattrs = add_attr(extattrs)
 
+        current_txts = self.get_txt_record(name)
+        if current_txts:
+            for current_txt in current_txts:
+                if current_txt.get(_TXT_PROPERTY) == txt:
+                    self.module.exit_json(msg='TXT object exist')
+
         model = { _NAME_PROPERTY: name, _TXT_PROPERTY: txt,
                   _VIEW_PROPERTY: self.dns_view, 
                   _USE_TTL_PROPERTY: ttl is not None, _TTL_PROPERTY: ttl,
@@ -698,6 +822,12 @@ class Infoblox(object):
         else:
             current_name = current.get('name')
 
+        current_txts = self.get_txt_record(desired_name)
+        if current_txts:
+            for current_txt in current_txts:
+                if current_txt.get(_TXT_PROPERTY) == desired_txt:
+                    self.module.exit_json(msg='TXT object exist')
+
         object_ref = None
         current_txt = current.get('current_txt')
         first_found = current.get('first_found')
@@ -718,13 +848,12 @@ class Infoblox(object):
         used_txt = txts[my_entry]
         key_out = used_txt.get('_ref')
         object_ref = key_out.split(':')[0] + ':' + key_out.split(':')[1]
-        comment = used_txt.get('comment')
-        ttl = used_txt.get('ttl')
 
         if object_ref is None:
             self.module.fail_json(msg="Name {} was not found.".format(current_name))
         if extattrs is not None:
             extattrs = add_attr(extattrs)
+        #self.module.fail_json(msg=object_ref)
 
         model = { _NAME_PROPERTY: desired_name, _TXT_PROPERTY: desired_txt,
                   _VIEW_PROPERTY: self.dns_view,
@@ -732,6 +861,19 @@ class Infoblox(object):
                   _COMMENT_PROPERTY: comment, _EXT_ATTR_PROPERTY: extattrs }
         model = self._make_model(model)
         return self.invoke("put", object_ref, json=model)
+
+    # ---------------------------------------------------------------------------
+    # delete_txt_record()
+    # ---------------------------------------------------------------------------
+    def delete_txt_record(self, name):
+        """
+        Delete txt record object
+        """
+        object_ref = self.get_txt_object(name)
+        if object_ref:
+            return self.delete_object(object_ref)
+        else:
+            self.module.exit_json(msg='Object deleted already')
 
     # ---------------------------------------------------------------------------
     # get_aliases()
@@ -1234,6 +1376,7 @@ def main():
                 "update_ptr_record", "update_cname_record", "update_auth_zone", "update_forward_zone",
                 "update_txt_record", "update_network_container",
                 "delete_alias", "delete_cname", "delete_a_record", "delete_fixedaddress", "delete_host",
+                "delete_ptr_record", "delete_srv_record",
                 "reserve_next_available_ip"
             ]),
             host=dict(required=False),
@@ -1548,6 +1691,12 @@ def main():
             module.exit_json(msg="CNAME %s not found" % cname)
 
     elif action == "delete_a_record":
+        if address:
+            result = infoblox.delete_a_record(name, address)
+            if result:
+                module.exit_json(changed=True, result=result)
+            else:
+                raise Exception()
         result = infoblox.get_a_record(name)
         if result:
             result = infoblox.delete_object(result[0]["_ref"])
@@ -1589,8 +1738,20 @@ def main():
             module.exit_json(changed=True, result=result)
         else:
             raise Exception()
+    elif action == "delete_ptr_record":
+        result = infoblox.delete_ptr_record(name, address)
+        if result:
+            module.exit_json(changed=True, result=result)
+        else:
+            raise Exception()
     elif action == "update_cname_record":
         result = infoblox.update_cname_record(cname, canonical, current, comment, ttl, extattrs)
+        if result:
+            module.exit_json(changed=True, result=result)
+        else:
+            raise Exception()
+    elif action == "delete_cname_record":
+        result = infoblox.delete_cname_record(cname)
         if result:
             module.exit_json(changed=True, result=result)
         else:
@@ -1627,6 +1788,12 @@ def main():
             raise Exception()
     elif action == "update_srv_record":
         result = infoblox.update_srv_record(name, srv_attr, current, comment, ttl, extattrs)
+        if result:
+            module.exit_json(changed=True, result=result)
+        else:
+            raise Exception()
+    elif action == "delete_srv_record":
+        result = infoblox.delete_srv_record(name)
         if result:
             module.exit_json(changed=True, result=result)
         else:
