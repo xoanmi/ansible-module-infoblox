@@ -253,7 +253,7 @@ class Infoblox(object):
             - 192.168.1.0/24
         """
         if not network:
-            self.module.exit_json(msg="You must specify the option 'network'.")
+            self.module.fail_json(msg="You must specify the option 'network'.")
         params = {_NETWORK_PROPERTY: network, _NETWORK_VIEW_PROPERTY: self.net_view}
         return self.invoke("get", "network", params=params)
 
@@ -267,9 +267,9 @@ class Infoblox(object):
             - 192.168.1.0
         """
         if not start_addr:
-            self.module.exit_json(msg="You must specify the option 'start_addr.")
+            self.module.fail_json(msg="You must specify the option 'start_addr.")
         if not end_addr:
-            self.module.exit_json(msg="You must specify the option 'end_addr.")
+            self.module.fail_json(msg="You must specify the option 'end_addr.")
         params = {"start_addr": start_addr, "end_addr": end_addr, _NETWORK_VIEW_PROPERTY: self.net_view}
         return self.invoke("get", "range", params=params)
 
@@ -283,7 +283,7 @@ class Infoblox(object):
             - ipv6-cidr notation
         """
         if not network:
-            self.module.exit_json(msg="You must specify the option 'network'.")
+            self.module.fail_json(msg="You must specify the option 'network'.")
         params={_NETWORK_PROPERTY: network, _NETWORK_VIEW_PROPERTY: self.net_view}
         return self.invoke("get", "ipv6network", params=params)
 
@@ -295,7 +295,7 @@ class Infoblox(object):
         Return next available ip in a network range
         """
         if not network_ref:
-            self.module.exit_json(msg="You must specify the option 'network_ref'.")
+            self.module.fail_json(msg="You must specify the option 'network_ref'.")
         params = {"_function": "next_available_ip"}
         return self.invoke("post", network_ref, ok_codes=(200,), params=params)
 
@@ -335,7 +335,7 @@ class Infoblox(object):
         Search CNAME by FQDN in infoblox by using rest api
         """
         if not cname:
-            self.module.exit_json(msg="You must specify the option 'cname'.")
+            self.module.fail_json(msg="You must specify the option 'cname'.")
 
         params={ _NAME_PROPERTY: cname, _VIEW_PROPERTY: self.dns_view}
         return self.invoke("get", "record:cname", params=params)
@@ -348,7 +348,7 @@ class Infoblox(object):
         Add CNAME in infoblox by using rest api
         """
         if cname is None or canonical is None:
-            self.module.exit_json(msg="You must specify the option 'name' and 'canonical'.")
+            self.module.fail_json(msg="You must specify the option 'name' and 'canonical'.")
         if extattrs is not None:
             extattrs = add_attr(extattrs)
 
@@ -386,10 +386,10 @@ class Infoblox(object):
 
         if not object_ref:
             msg="IP {} and ptrdname {} pair was not found.".format(current_ip, current_name)
-            self.module.exit_json(msg=msg)
+            self.module.fail_json(msg=msg)
 
         if object_ref is None:
-            self.module.exit_json(msg="Name {} was not found.".format(current_name))
+            self.module.fail_json(msg="Name {} was not found.".format(current_name))
         if extattrs is not None:
             extattrs = add_attr(extattrs)
 
@@ -408,7 +408,7 @@ class Infoblox(object):
         Retrieves information about the A record with the given name.
         """
         if not name:
-            self.module.exit_json(msg="You must specify the option 'name'.")
+            self.module.fail_json(msg="You must specify the option 'name'.")
 
         property_list = [_IPV4_ADDRESS_PROPERTY]
         my_property = self._return_property(True, property_list)
@@ -427,7 +427,7 @@ class Infoblox(object):
         https://ipam.illinois.edu/wapidoc/objects/record.a.html
         """
         if not name or not address:
-            self.module.exit_json(msg="You must specify the option 'name' and 'address'.")
+            self.module.fail_json(msg="You must specify the option 'name' and 'address'.")
         if extattrs is not None:
             extattrs = add_attr(extattrs)
 
@@ -464,10 +464,10 @@ class Infoblox(object):
 
         if not object_ref:
             msg="IP {} and ptrdname {} pair was not found.".format(current_ip, current_name)
-            self.module.exit_json(msg=msg)
+            self.module.fail_json(msg=msg)
 
         if object_ref is None:
-            self.module.exit_json(msg="Name {} was not found.".format(current_name))
+            self.module.fail_json(msg="Name {} was not found.".format(current_name))
         if extattrs is not None:
             extattrs = add_attr(extattrs)
 
@@ -486,7 +486,7 @@ class Infoblox(object):
         Retrieves information about the PTR record with the given address.
         """
         if not address:
-            self.module.exit_json(msg="You must specify the option 'address'.")
+            self.module.fail_json(msg="You must specify the option 'address'.")
 
         property_list = [_IPV4_ADDRESS_PROPERTY, _PTRDNAME_PROPERTY ]
         my_property = self._return_property(True, property_list)
@@ -504,7 +504,7 @@ class Infoblox(object):
         https://ipam.illinois.edu/wapidoc/objects/record.ptr.html
         """
         if not name or not address:
-            self.module.exit_json(msg="You must specify the option 'name' and 'address'.")
+            self.module.fail_json(msg="You must specify the option 'name' and 'address'.")
         if extattrs is not None:
             extattrs = add_attr(extattrs)
 
@@ -539,7 +539,7 @@ class Infoblox(object):
                 break
 
         if object_ref is None:
-            self.module.exit_json(msg="IP {} and ptrdname {} pair was not found.".format(current_ip, current_name))
+            self.module.fail_json(msg="IP {} and ptrdname {} pair was not found.".format(current_ip, current_name))
         if extattrs is not None:
             extattrs = add_attr(extattrs)
 
@@ -559,7 +559,7 @@ class Infoblox(object):
         Retrieves information about the SRV record with the given name.
         """
         if not name:
-            self.module.exit_json(msg="You must specify the option 'address'.")
+            self.module.fail_json(msg="You must specify the option 'address'.")
 
         property_list = [ _VIEW_PROPERTY, _COMMENT_PROPERTY, _TTL_PROPERTY, _EXT_ATTR_PROPERTY,
                           _WEIGHT_PROPERTY, _PORT_PROPERTY, _PRIORITY_PROPERTY, _TARGET_PROPERTY ]
@@ -703,9 +703,9 @@ class Infoblox(object):
         first_found = current.get('first_found')
 
         if first_found is not None and current_txt is not None:
-            self.module.exit_json(msg="Please Specify either current_txt or first_found, but not both.")
+            self.module.fail_json(msg="Please Specify either current_txt or first_found, but not both.")
         elif first_found is None and current_txt is None:
-            self.module.exit_json(msg="The 'current' dict must have either 'current_txt' or 'first_found' as a key.")
+            self.module.fail_json(msg="The 'current' dict must have either 'current_txt' or 'first_found' as a key.")
 
         txts = self.get_txt_record(current_name)
         if current_txt:
@@ -722,7 +722,7 @@ class Infoblox(object):
         ttl = used_txt.get('ttl')
 
         if object_ref is None:
-            self.module.exit_json(msg="Name {} was not found.".format(current_name))
+            self.module.fail_json(msg="Name {} was not found.".format(current_name))
         if extattrs is not None:
             extattrs = add_attr(extattrs)
 
@@ -741,7 +741,7 @@ class Infoblox(object):
         Get all the aliases on a host
         """
         if not host:
-            self.module.exit_json(msg="You must specify the option 'host'.")
+            self.module.fail_json(msg="You must specify the option 'host'.")
         params = {"name": host, "view": self.dns_view}
         return self.invoke("get", "record:host?_return_fields%2B=aliases", params=params)
 
@@ -753,7 +753,7 @@ class Infoblox(object):
         Update alias for a host
         """
         if not object_ref:
-            self.module.exit_json(msg="Object _ref required!")
+            self.module.fail_json(msg="Object _ref required!")
         if extattrs is not None:
             extattrs = add_attr(extattrs)
         return self.invoke("put", object_ref, json=alias)
@@ -766,7 +766,7 @@ class Infoblox(object):
         Search host by FQDN in infoblox by using rest api
         """
         if not host:
-            self.module.exit_json(msg="You must specify the option 'host'.")
+            self.module.fail_json(msg="You must specify the option 'host'.")
         params = {"name": host, "_return_fields+": "comment,extattrs", "view": self.dns_view}
         return self.invoke("get", "record:host", params=params)
 
@@ -778,7 +778,7 @@ class Infoblox(object):
         Add host in infoblox by using rest api
         """
         if not host:
-            self.module.exit_json(msg="You must specify the hostname parameter 'host'.")
+            self.module.fail_json(msg="You must specify the hostname parameter 'host'.")
 
         if extattrs is not None:
             extattrs = add_attr(extattrs)
@@ -825,7 +825,7 @@ class Infoblox(object):
                 break
 
         if object_ref is None:
-            self.module.exit_json(msg="IP {} and ptrdname {} pair was not found.".format(current_ip, current_name))
+            self.module.fail_json(msg="IP {} and ptrdname {} pair was not found.".format(current_ip, current_name))
         if extattrs is not None:
             extattrs = add_attr(extattrs)
 
@@ -838,7 +838,7 @@ class Infoblox(object):
                         addr_object_ref = key_out.split(':')[0] + ':' + key_out.split(':')[1]
                         break
             if addr_object_ref is None:
-                self.module.exit_json(msg="IP {} was not found.".format(current_address))
+                self.module.fail_json(msg="IP {} was not found.".format(current_address))
             addr_model = {"ipv4addrs": [{"ipv4addr": desired_address}]}
             self.invoke("put", object_ref, json=addr_model)
 
@@ -858,7 +858,7 @@ class Infoblox(object):
         Add host in infoblox by using rest api
         """
         if not host:
-            self.module.exit_json(msg="You must specify the option 'host'.")
+            self.module.fail_json(msg="You must specify the option 'host'.")
 
         if network:
             address = "func:nextavailableip:" + network
@@ -885,7 +885,7 @@ class Infoblox(object):
         Search for Authoritative Zone in infoblox by fqdn
         """
         if fqdn is None:
-            self.module.exit_json(msg="You must specify the option 'name'.")
+            self.module.fail_json(msg="You must specify the option 'name'.")
 
         params={ _FQDN_PROPERTY: fqdn, _VIEW_PROPERTY: self.dns_view}
         return self.invoke("get", "zone_auth", params=params)
@@ -899,7 +899,7 @@ class Infoblox(object):
         Add FQDN in infoblox by using rest api
         """
         if fqdn is None:
-            self.module.exit_json(msg="You must specify the option 'fqdn'.")
+            self.module.fail_json(msg="You must specify the option 'fqdn'.")
 
         if extattrs is not None:
             extattrs = add_attr(extattrs)
@@ -929,10 +929,10 @@ class Infoblox(object):
 
         if not object_ref:
             msg="FQDN {} was not found.".format(current_fqdn)
-            self.module.exit_json(msg=msg)
+            self.module.fail_json(msg=msg)
 
         if object_ref is None:
-            self.module.exit_json(msg="Name {} was not found.".format(current_name))
+            self.module.fail_json(msg="Name {} was not found.".format(current_name))
         if extattrs is not None:
             extattrs = add_attr(extattrs)
 
@@ -951,7 +951,7 @@ class Infoblox(object):
         Search for Forward Zone in infoblox by fqdn
         """
         if fqdn is None:
-            self.module.exit_json(msg="You must specify the option 'fqdn'.")
+            self.module.fail_json(msg="You must specify the option 'fqdn'.")
 
         params={ _FQDN_PROPERTY: fqdn, _VIEW_PROPERTY: self.dns_view}
         return self.invoke("get", "zone_forward", params=params)
@@ -965,12 +965,12 @@ class Infoblox(object):
         Add FQDN in infoblox by using rest api
         """
         if fqdn is None:
-            self.module.exit_json(msg="You must specify the option 'fqdn'.")
+            self.module.fail_json(msg="You must specify the option 'fqdn'.")
 
         if extattrs is not None:
             extattrs = add_attr(extattrs)
         if name != "dns-server":
-            self.module.exit_json(msg="Currently only support dns-server.")
+            self.module.fail_json(msg="Currently only support dns-server.")
 
         forward_to = [{_NAME_PROPERTY: name, "address": address}]
         model = { _FQDN_PROPERTY: fqdn, _FORWARD_TO_PROPERTY: forward_to,
@@ -1006,10 +1006,10 @@ class Infoblox(object):
 
         if not object_ref:
             msg="FQDN {} was not found.".format(current_fqdn)
-            self.module.exit_json(msg=msg)
+            self.module.fail_json(msg=msg)
 
         if object_ref is None:
-            self.module.exit_json(msg="FQDN {} was not found.".format(current_fqdn))
+            self.module.fail_json(msg="FQDN {} was not found.".format(current_fqdn))
         if extattrs is not None:
             extattrs = add_attr(extattrs)
 
@@ -1028,7 +1028,7 @@ class Infoblox(object):
         Search for Authoritative Zone in infoblox by fqdn
         """
         if fqdn is None:
-            self.module.exit_json(msg="You must specify the option 'name'.")
+            self.module.fail_json(msg="You must specify the option 'name'.")
 
         params={ _FQDN_PROPERTY: fqdn, _VIEW_PROPERTY: self.dns_view}
         return self.invoke("get", "zone_delegated", params=params)
@@ -1042,23 +1042,24 @@ class Infoblox(object):
         Add FQDN in infoblox by using rest api
         """
         if fqdn is None:
-            self.module.exit_json(msg="You must specify the option 'name'.")
+            self.module.fail_json(msg="You must specify the option 'fqdn'.")
 
         if isinstance(delegate_to, dict):
             copy_delegate_to = delegate_to
             delegate_to = []
             delegate_to.append(copy_delegate_to)
         if not isinstance(delegate_to, list):
-            self.module.exit_json(msg="delegate_to was not a list or a dict.")
+            self.module.fail_json(msg="delegate_to was not a list or a dict.")
 
         for delegate in delegate_to:
             if not isinstance(delegate, dict):
-                self.module.exit_json(msg="Each element of delegate_to must be a dict, {} is not.".format(delegate))
+                self.module.fail_json(msg="Each element of delegate_to must be a dict, {} is not.".format(delegate))
             if delegate.get('name') and delegate.get('address'):
                 pass
             else:
-                self.module.exit_json(msg="Each element of delegate_to must have a 'name' "\
-                                           "and address 'key', which is the only supported method")
+                msg = "Each element of delegate_to must have a 'name' and 'address' key, which is the only supported method {} ".format(delegate) 
+                msg = str(delegate)
+                self.module.fail_json(msg=msg)
 
         if extattrs is not None:
             extattrs = add_attr(extattrs)
@@ -1077,7 +1078,7 @@ class Infoblox(object):
         Search for IPAM network in infoblox by network
         """
         if network is None:
-            self.module.exit_json(msg="You must specify the option 'network'.")
+            self.module.fail_json(msg="You must specify the option 'network'.")
 
         property_list = [ _NETWORK_CONTAINER_PROPERTY, _NETWORK_VIEW_PROPERTY, _NETWORK_PROPERTY ]
         my_property = self._return_property(False, property_list)
@@ -1095,7 +1096,7 @@ class Infoblox(object):
         https://ipam.illinois.edu/wapidoc/objects/record.ptr.html
         """
         if not network:
-            self.module.exit_json(msg="You must specify the option 'name' and 'address'.")
+            self.module.fail_json(msg="You must specify the option 'name' and 'address'.")
         if extattrs is not None:
             extattrs = add_attr(extattrs)
 
@@ -1122,7 +1123,7 @@ class Infoblox(object):
                 break
 
         if object_ref is None:
-            self.module.exit_json(msg="Name {} was not found.".format(current_network))
+            self.module.fail_json(msg="Name {} was not found.".format(current_network))
         if extattrs is not None:
             extattrs = add_attr(extattrs)
 
@@ -1138,7 +1139,7 @@ class Infoblox(object):
         Delete object in infoblox by using rest api
         """
         if not obj_ref:
-            self.module.exit_json(msg="Object _ref required!")
+            self.module.fail_json(msg="Object _ref required!")
         return self.invoke("delete", obj_ref, ok_codes=(200, 404))
 
     # ---------------------------------------------------------------------------
@@ -1149,7 +1150,7 @@ class Infoblox(object):
         Update the name of a object
         """
         if not object_ref:
-            self.module.exit_json(msg="You must specify the option 'object_ref'.")
+            self.module.fail_json(msg="You must specify the option 'object_ref'.")
         payload = {"name": name}
         return self.invoke("put", object_ref, json=payload)
 
@@ -1161,13 +1162,13 @@ class Infoblox(object):
         Update the extra attribute value
         """
         if not object_ref:
-            self.module.exit_json(msg="You must specify the option 'object_ref''.")
+            self.module.fail_json(msg="You must specify the option 'object_ref''.")
         payload = {"extattrs": {attr_name: {"value": attr_value}}}
         return self.invoke("put", object_ref, json=payload)
 
 def add_attr(attributes):
     if isinstance(attributes, dict) and len(attributes.keys()) > 1:
-        self.module.exit_json(msg="A dict was sent with more then one key/val pair. Please use {key:val } only .")
+        self.module.fail_json(msg="A dict was sent with more then one key/val pair. Please use {key:val } only .")
     elif isinstance(attributes, dict):
         attributes = [{ attributes.keys()[0]: attributes.values()[0] }]
 
@@ -1176,7 +1177,7 @@ def add_attr(attributes):
         if len(item.keys()) == 1 and len(item.values()) == 1:
             attr[item.keys()[0]] = {'value': item.values()[0]}
         else:
-            self.module.exit_json(msg="A dict was sent with more then one key/val pair. Please use {key:val } only .")
+            self.module.fail_json(msg="A dict was sent with more then one key/val pair. Please use {key:val } only .")
     return attr
 
 def _are_records_equivalent(a_record_1, a_record_2):
@@ -1224,7 +1225,7 @@ def main():
             action=dict(required=True, choices=[
                 "get_aliases", "get_cname", "get_a_record", "get_host", "get_network", "get_range",
                 "get_next_available_ip", "get_fixedaddress", "get_ipv6network", "get_ptr_record",
-                "get_srv_record", "get_auth_zone", "get_forward_zone", "get_delegated_zone"
+                "get_srv_record", "get_auth_zone", "get_forward_zone", "get_delegated_zone", 
                 "add_alias", "add_cname", "add_host", "add_ipv6_host", "create_ptr_record",
                 "get_txt_record", "get_network_container",
                 "create_a_record", "create_srv_record", "create_auth_zone", "create_forward_zone",
@@ -1252,7 +1253,7 @@ def main():
             srv_attr=dict(required=False, type="dict"),
             txt=dict(required=False),
             fqdn=dict(required=False),
-            delegate_to=dict(required=False),
+            delegate_to=dict(required=False, type='dict'),
             comment=dict(required=False, default="Object managed by ansible-infoblox module"),
             api_version=dict(required=False, default="1.7.1"),
             dns_view=dict(required=False, default="default"),
@@ -1573,7 +1574,7 @@ def main():
     elif action == "get_ptr_record":
         result = infoblox.get_ptr_record(address)
         if result:
-            module.exit_json(changed=True, result=result)
+            module.exit_json(result=result)
         else:
             raise Exception()
     elif action == "create_ptr_record":
@@ -1597,7 +1598,7 @@ def main():
     elif action == "get_a_record":
         result = infoblox.get_a_record(name)
         if result:
-            module.exit_json(changed=True, result=result)
+            module.exit_json(result=result)
         else:
             raise Exception()
     elif action == "create_a_record":
@@ -1615,7 +1616,7 @@ def main():
     elif action == "get_srv_record":
         result = infoblox.get_srv_record(name)
         if result:
-            module.exit_json(changed=True, result=result)
+            module.exit_json(result=result)
         else:
             raise Exception()
     elif action == "create_srv_record":
@@ -1633,7 +1634,7 @@ def main():
     elif action == "get_txt_record":
         result = infoblox.get_txt_record(name)
         if result:
-            module.exit_json(changed=True, result=result)
+            module.exit_json(result=result)
         else:
             raise Exception()
     elif action == "create_txt_record":
@@ -1657,7 +1658,7 @@ def main():
     elif action == "get_network_container":
         result = infoblox.get_network_container(network)
         if result:
-            module.exit_json(changed=True, result=result)
+            module.exit_json(result=result)
         else:
             raise Exception()
     elif action == "create_network_container":
@@ -1675,7 +1676,7 @@ def main():
     elif action == "get_auth_zone":
         result = infoblox.get_auth_zone(fqdn)
         if result:
-            module.exit_json(changed=True, result=result)
+            module.exit_json(result=result)
         else:
             raise Exception()
     elif action == "create_auth_zone":
@@ -1693,7 +1694,7 @@ def main():
     elif action == "get_forward_zone":
         result = infoblox.get_forward_zone(fqdn)
         if result:
-            module.exit_json(changed=True, result=result)
+            module.exit_json(result=result)
         else:
             raise Exception()
     elif action == "create_forward_zone":
@@ -1711,7 +1712,7 @@ def main():
     elif action == "get_delegated_zone":
         result = infoblox.get_delegated_zone(fqdn)
         if result:
-            module.exit_json(changed=True, result=result)
+            module.exit_json(result=result)
         else:
             raise Exception()
     elif action == "create_delegated_zone":
