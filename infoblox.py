@@ -177,8 +177,8 @@ _WEIGHT_PROPERTY = "weight"
 _TARGET_PROPERTY = "target"
 _MAC_PROPERTY = "mac"
 _CANONICAL_PROPERTY = "canonical"
-_IPV4_ADDRS_PROPERTY = "ipv4addr"
-_IPV6_ADDRS_PROPERTY = "ipv6addr"
+_IPV4_ADDRS_PROPERTY = "ipv4addrs"
+_IPV6_ADDRS_PROPERTY = "ipv6addrs"
 _FQDN_PROPERTY = "fqdn"
 _FORWARD_TO_PROPERTY = "forward_to"
 _NETWORK_PROPERTY = "network"
@@ -334,7 +334,12 @@ class Infoblox(object):
         object_ref = None
         cnames = self.get_cname(cname)
         
-        _ref = cnames[0].get('_ref')
+        _ref = None
+        canonical = None
+        #self.module.fail_json(msg="Here {}".format(cnames))
+        if isinstance(cnames, list) and len(cnames) > 0:
+            detail = cnames[0]
+            _ref = detail.get('_ref')
         if _ref:
             object_ref = _ref.split(':')[0] + ':' + _ref.split(':')[1]
             canonical = cnames[0].get('canonical')
@@ -369,8 +374,8 @@ class Infoblox(object):
 
         if object_ref:
             if current_canonical != canonical:
-                msg = 'Canonical name is {} and {} is not the same \
-                       please use update_cname_record'.format(current_canonical,canonical)
+                msg = 'Canonical name is {} and {} is not the same ' \
+                       'please use update_cname_record'.format(current_canonical,canonical)
                 self.module.fail_json(msg=msg)
                 
             self.module.exit_json(msg='CNAME Exists')
@@ -853,7 +858,7 @@ class Infoblox(object):
             self.module.fail_json(msg="Name {} was not found.".format(current_name))
         if extattrs is not None:
             extattrs = add_attr(extattrs)
-        #self.module.fail_json(msg=object_ref)
+        #self.module.fail_json(msg="{} == {}".format(object_ref, desired_txt))
 
         model = { _NAME_PROPERTY: desired_name, _TXT_PROPERTY: desired_txt,
                   _VIEW_PROPERTY: self.dns_view,
@@ -913,9 +918,23 @@ class Infoblox(object):
         return self.invoke("get", "record:host", params=params)
 
     # ---------------------------------------------------------------------------
+    # get_host_object()
+    # ---------------------------------------------------------------------------
+    def get_host_object(self, name, address):
+        object_ref = None
+        hosts = self.get_host_by_name(name)
+
+        for host in hosts:
+            if host.get(_IPV4_ADDRESS_PROPERTY) == address:
+                key_out = host.get('_ref')
+                object_ref = key_out.split(':')[0] + ':' + key_out.split(':')[1]
+                break
+        return object_ref
+
+    # ---------------------------------------------------------------------------
     # create_host_record()
     # ---------------------------------------------------------------------------
-    def create_host_record(self, host, network_ref, address, comment=None, ttl=None, extattrs=None):
+    def create_host_record(self, host, address, network_ref=None, comment=None, ttl=None, extattrs=None):
         """
         Add host in infoblox by using rest api
         """
@@ -925,20 +944,25 @@ class Infoblox(object):
         if extattrs is not None:
             extattrs = add_attr(extattrs)
 
-        if network_ref:
+        if network_ref is not None:
             address = "func:nextavailableip:" + network_ref
         elif address:
-            pass
+            object_ref = self.get_host_object(host, address)
+            if object_ref:
+                self.module.exit_json(msg='A record Exists')
+            object_ref = self.get_host_by_name(host)
+            if object_ref:
+                self.module.fail_json(msg='HOST record already exists, please use update')
         else:
             raise Exception("Function options missing!")
 
-        model = { _NAME_PROPERTY: host, _IPV4ADDRS_PROPERTY: [{"ipv4addr": address}], 
+
+        model = { _NAME_PROPERTY: host, _IPV4_ADDRS_PROPERTY: [{_IPV4_ADDRESS_PROPERTY: address}], 
                   _VIEW_PROPERTY: self.dns_view,
                   _USE_TTL_PROPERTY: ttl is not None, _TTL_PROPERTY: ttl,
                   _COMMENT_PROPERTY: comment, _EXT_ATTR_PROPERTY: extattrs }
         model = self._make_model(model)
-
-        return self.invoke("post", "record:host?_return_fields=ipv4addrs", ok_codes=(200, 201, 400), json=model)
+        return self.invoke("post", "record:host", ok_codes=(200, 201, 400), json=model)
 
     # ---------------------------------------------------------------------------
     # update_host_record()
@@ -949,10 +973,10 @@ class Infoblox(object):
         """
         if not isinstance(current, dict):
             self.module.fail_json(msg="The 'current' check is not a dict")
-        elif not current.get('name') or not current.get('address'):
-            self.module.fail_json(msg="The 'current' dict must contain a 'name' and 'address' key")
+        elif not current.get('host') or not current.get('address'):
+            self.module.fail_json(msg="The 'current' dict must contain a 'host' and 'address' key")
         else:
-            current_name = current.get('name')
+            current_name = current.get('host')
             current_address = current.get('address')
 
         object_ref = None
@@ -1046,6 +1070,14 @@ class Infoblox(object):
         if extattrs is not None:
             extattrs = add_attr(extattrs)
 
+        object_ref = None
+        fqdns = self.get_auth_zone(fqdn)
+
+        for current_fqdn in fqdns:
+            if current_fqdn.get('fqdn') == fqdn:
+                msg="FQDN {} already exists.".format(fqdn)
+                self.module.exit_json(msg=msg)
+
         model = { _FQDN_PROPERTY: fqdn,
                   _VIEW_PROPERTY: self.dns_view, _COMMENT_PROPERTY: comment,
                   _EXT_ATTR_PROPERTY: extattrs }
@@ -1061,10 +1093,10 @@ class Infoblox(object):
         Update alias for a cname entry
         """
         object_ref = None
-        fqdns = self.get_cname(current_fqdn)
+        fqdns = self.get_auth_zone(current_fqdn)
 
         for fqdn in fqdns:
-            if fqdn.get('name') == current_fqdn:
+            if fqdn.get('fqdn') == current_fqdn:
                 key_out = fqdn.get('_ref')
                 object_ref = key_out.split(':')[0]
                 break
@@ -1078,9 +1110,7 @@ class Infoblox(object):
         if extattrs is not None:
             extattrs = add_attr(extattrs)
 
-        model = { _FQDN_PROPERTY: desired_name, 
-                  _VIEW_PROPERTY: self.dns_view, _COMMENT_PROPERTY: comment,
-                  _USE_TTL_PROPERTY: ttl is not None, _TTL_PROPERTY: ttl,
+        model = { _VIEW_PROPERTY: self.dns_view, _COMMENT_PROPERTY: comment,
                   _EXT_ATTR_PROPERTY: extattrs }
         model = self._make_model(model)
         return self.invoke("put", object_ref, json=model)
@@ -1124,7 +1154,7 @@ class Infoblox(object):
     # ---------------------------------------------------------------------------
     # update_forward_zone()
     # ---------------------------------------------------------------------------
-    def update_forward_zone(self, desired_name, desired_address, current,
+    def update_forward_zone(self, desired_name, desired_address,
                          comment=None, ttl=None, extattrs=None):
         """
         Update forward zone entry
@@ -1241,6 +1271,9 @@ class Infoblox(object):
             self.module.fail_json(msg="You must specify the option 'name' and 'address'.")
         if extattrs is not None:
             extattrs = add_attr(extattrs)
+
+        if len(self.get_network_container(network)) > 0:
+            self.module.exit_json(msg="Network already exists.")
 
         model = { _NETWORK_CONTAINER_PROPERTY: network, _NETWORK_PROPERTY: network,
                   _COMMENT_PROPERTY: comment,
@@ -1374,7 +1407,7 @@ def main():
                 "create_delegated_zone", "create_txt_record", "create_network_container",
                 "set_a_record", "set_name", "set_extattr", "update_a_record", "update_srv_record",
                 "update_ptr_record", "update_cname_record", "update_auth_zone", "update_forward_zone",
-                "update_txt_record", "update_network_container",
+                "update_txt_record", "update_network_container", "update_host_record",
                 "delete_alias", "delete_cname", "delete_a_record", "delete_fixedaddress", "delete_host",
                 "delete_ptr_record", "delete_srv_record",
                 "reserve_next_available_ip"
@@ -1384,24 +1417,24 @@ def main():
             start_addr=dict(required=False),
             end_addr=dict(required=False),
             object_ref=dict(required=False),
-            name=dict(required=False),
+            name=dict(required=False, type='str'),
             address=dict(required=False),
             addresses=dict(required=False, type="list"),
             alias=dict(required=False),
             attr_name=dict(required=False),
             attr_value=dict(required=False),
-            cname=dict(required=False),
+            cname=dict(required=False, type='str'),
             current=dict(required=False, type="dict"),
-            canonical=dict(required=False),
+            canonical=dict(required=False, type='str'),
             srv_attr=dict(required=False, type="dict"),
-            txt=dict(required=False),
-            fqdn=dict(required=False),
-            delegate_to=dict(required=False, type='dict'),
+            txt=dict(required=False, type='str'),
+            fqdn=dict(required=False, type="raw"),
+            delegate_to=dict(required=False, type='raw'),
             comment=dict(required=False, default="Object managed by ansible-infoblox module"),
             api_version=dict(required=False, default="1.7.1"),
             dns_view=dict(required=False, default="default"),
             net_view=dict(required=False, default="default"),
-            extattrs=dict(required=False, default=None),
+            extattrs=dict(required=False, default=None, type='raw'),
             ttl=dict(required=False)
         ),
         #mutually_exclusive=[
@@ -1621,18 +1654,24 @@ def main():
             module.exit_json(changed=True, result=set_a_records)
 
     elif action == "add_host":
+        network_ref = None
         if network:
             network_ref = infoblox.get_network(network)
-
         elif start_addr and end_addr:
             network_ref = infoblox.get_range(start_addr, end_addr)
+        elif address:
+            # Fix for when network or range is not needed
+            pass
         else:
             raise Exception("No network or range start/end address specified")
         if network_ref:
             network_ref = network_ref[0]["_ref"] #Break ref out of dict
+        elif address:
+            # Fix for when network or range is not needed
+            pass
         else:
             raise Exception("No network/range found for specified parameters")
-        result = infoblox.create_host_record(host, network_ref, address, comment)
+        result = infoblox.create_host_record(host, address, network_ref, comment, ttl, extattrs)
         if result:
             result = infoblox.get_host_by_name(host)
             module.exit_json(changed=True, result=result)
@@ -1811,13 +1850,13 @@ def main():
         else:
             raise Exception()
     elif action == "update_txt_record":
-        result = infoblox.update_txt_record(name, srv_attr, current, comment, ttl, extattrs)
+        result = infoblox.update_txt_record(name, txt, current, comment, ttl, extattrs)
         if result:
             module.exit_json(changed=True, result=result)
         else:
             raise Exception()
     elif action == "update_host_record":
-        result = infoblox.update_host_record(name, address, current, comment, ttl, extattrs)
+        result = infoblox.update_host_record(host, address, current, comment, ttl, extattrs)
         if result:
             module.exit_json(changed=True, result=result)
         else:
@@ -1871,7 +1910,7 @@ def main():
         else:
             raise Exception()
     elif action == "update_forward_zone":
-        result = infoblox.update_forward_zone(fqdn, name, address, current, comment, ttl, extattrs)
+        result = infoblox.update_forward_zone(fqdn, name, address, comment, ttl, extattrs)
         if result:
             module.exit_json(changed=True, result=result)
         else:
