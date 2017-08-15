@@ -310,7 +310,7 @@ class Infoblox(object):
         if comment is None:
             comment = "IP reserved via ansible infoblox self.module"
         if extattrs is not None:
-            extattrs = add_attr(extattrs)
+            extattrs = self.add_attr(extattrs)
 
         model = { _IPV4_ADDRESS_PROPERTY: "func:nextavailableip:" + network, _MAC_PROPERTY: mac,
                   _COMMENT_PROPERTY: comment, _EXT_ATTR_PROPERTY: extattrs }
@@ -368,7 +368,7 @@ class Infoblox(object):
         if cname is None or canonical is None:
             self.module.fail_json(msg="You must specify the option 'name' and 'canonical'.")
         if extattrs is not None:
-            extattrs = add_attr(extattrs)
+            extattrs = self.add_attr(extattrs)
 
         object_ref, current_canonical = self.get_cname_object(cname)
 
@@ -401,7 +401,7 @@ class Infoblox(object):
             current_cname = current.get('cname')
 
         if extattrs is not None:
-            extattrs = add_attr(extattrs)
+            extattrs = self.add_attr(extattrs)
 
         object_ref, current_canonical = self.get_cname_object(current_cname)
         if object_ref is None:
@@ -469,7 +469,7 @@ class Infoblox(object):
         if not name or not address:
             self.module.fail_json(msg="You must specify the option 'name' and 'address'.")
         if extattrs is not None:
-            extattrs = add_attr(extattrs)
+            extattrs = self.add_attr(extattrs)
 
         object_ref = self.get_a_object(name, address)
         if object_ref:
@@ -517,7 +517,7 @@ class Infoblox(object):
         if object_ref is None:
             self.module.fail_json(msg="Name {} was not found.".format(current_name))
         if extattrs is not None:
-            extattrs = add_attr(extattrs)
+            extattrs = self.add_attr(extattrs)
 
         model = { _NAME_PROPERTY: desired_name, _IPV4_ADDRESS_PROPERTY: desired_address,
                   _USE_TTL_PROPERTY: ttl is not None, _TTL_PROPERTY: ttl,
@@ -580,7 +580,7 @@ class Infoblox(object):
         if not name or not address:
             self.module.fail_json(msg="You must specify the option 'name' and 'address'.")
         if extattrs is not None:
-            extattrs = add_attr(extattrs)
+            extattrs = self.add_attr(extattrs)
 
         object_ref = self.get_ptr_object(address, name)
         if object_ref:
@@ -623,7 +623,7 @@ class Infoblox(object):
         if object_ref is None:
             self.module.fail_json(msg="IP {} and ptrdname {} pair was not found.".format(current_ip, current_name))
         if extattrs is not None:
-            extattrs = add_attr(extattrs)
+            extattrs = self.add_attr(extattrs)
 
         model = { _PTRDNAME_PROPERTY: desired_name,# _NAME_PROPERTY: desired_name,
                   _IPV4_ADDRESS_PROPERTY: desired_address,
@@ -700,7 +700,7 @@ class Infoblox(object):
         weight = srv_attr.get('weight')
 
         if extattrs is not None:
-            extattrs = add_attr(extattrs)
+            extattrs = self.add_attr(extattrs)
 
         model = { _NAME_PROPERTY: name, _PORT_PROPERTY: port,
                   _PRIORITY_PROPERTY: priority, _TARGET_PROPERTY: dns_target,
@@ -744,7 +744,7 @@ class Infoblox(object):
             self.module.fail_json(msg="Name {} was not found.".format(current_name))
 
         if extattrs is not None:
-            extattrs = add_attr(extattrs)
+            extattrs = self.add_attr(extattrs)
 
         model = { _PORT_PROPERTY: port,
                   _PRIORITY_PROPERTY: priority, _TARGET_PROPERTY: dns_target,
@@ -796,7 +796,7 @@ class Infoblox(object):
         if not name or not txt:
             self.module.fail_json(msg="You must specify the option 'name' and 'txt'.")
         if extattrs is not None:
-            extattrs = add_attr(extattrs)
+            extattrs = self.add_attr(extattrs)
 
         current_txts = self.get_txt_record(name)
         if current_txts:
@@ -857,7 +857,7 @@ class Infoblox(object):
         if object_ref is None:
             self.module.fail_json(msg="Name {} was not found.".format(current_name))
         if extattrs is not None:
-            extattrs = add_attr(extattrs)
+            extattrs = self.add_attr(extattrs)
         #self.module.fail_json(msg="{} == {}".format(object_ref, desired_txt))
 
         model = { _NAME_PROPERTY: desired_name, _TXT_PROPERTY: desired_txt,
@@ -902,7 +902,7 @@ class Infoblox(object):
         if not object_ref:
             self.module.fail_json(msg="Object _ref required!")
         if extattrs is not None:
-            extattrs = add_attr(extattrs)
+            extattrs = self.add_attr(extattrs)
         return self.invoke("put", object_ref, json=alias)
 
     # ---------------------------------------------------------------------------
@@ -942,7 +942,7 @@ class Infoblox(object):
             self.module.fail_json(msg="You must specify the hostname parameter 'host'.")
 
         if extattrs is not None:
-            extattrs = add_attr(extattrs)
+            extattrs = self.add_attr(extattrs)
 
         if network_ref is not None:
             address = "func:nextavailableip:" + network_ref
@@ -993,7 +993,7 @@ class Infoblox(object):
         if object_ref is None:
             self.module.fail_json(msg="IP {} and ptrdname {} pair was not found.".format(current_ip, current_name))
         if extattrs is not None:
-            extattrs = add_attr(extattrs)
+            extattrs = self.add_attr(extattrs)
 
         if current_address != desired_address:
             addr_object_ref = None
@@ -1034,7 +1034,7 @@ class Infoblox(object):
             raise Exception("Function options missing!")
 
         if extattrs is not None:
-            extattrs = add_attr(extattrs)
+            extattrs = self.add_attr(extattrs)
 
         model = { _NAME_PROPERTY: host, _IPV6ADDRS_PROPERTY: [{"ipv6addr": address}],
                   _VIEW_PROPERTY: self.dns_view,
@@ -1068,7 +1068,7 @@ class Infoblox(object):
             self.module.fail_json(msg="You must specify the option 'fqdn'.")
 
         if extattrs is not None:
-            extattrs = add_attr(extattrs)
+            extattrs = self.add_attr(extattrs)
 
         object_ref = None
         fqdns = self.get_auth_zone(fqdn)
@@ -1108,7 +1108,7 @@ class Infoblox(object):
         if object_ref is None:
             self.module.fail_json(msg="Name {} was not found.".format(current_name))
         if extattrs is not None:
-            extattrs = add_attr(extattrs)
+            extattrs = self.add_attr(extattrs)
 
         model = { _VIEW_PROPERTY: self.dns_view, _COMMENT_PROPERTY: comment,
                   _EXT_ATTR_PROPERTY: extattrs }
@@ -1140,7 +1140,7 @@ class Infoblox(object):
             self.module.fail_json(msg="You must specify the option 'fqdn'.")
 
         if extattrs is not None:
-            extattrs = add_attr(extattrs)
+            extattrs = self.add_attr(extattrs)
         if name != "dns-server":
             self.module.fail_json(msg="Currently only support dns-server.")
 
@@ -1179,7 +1179,7 @@ class Infoblox(object):
         if object_ref is None:
             self.module.fail_json(msg="FQDN {} was not found.".format(current_fqdn))
         if extattrs is not None:
-            extattrs = add_attr(extattrs)
+            extattrs = self.add_attr(extattrs)
 
         forward_to = [{_NAME_PROPERTY: desired_name, "address": desired_address}]
         model = { _FORWARD_TO_PROPERTY: forward_to,
@@ -1230,7 +1230,7 @@ class Infoblox(object):
                 self.module.fail_json(msg=msg)
 
         if extattrs is not None:
-            extattrs = add_attr(extattrs)
+            extattrs = self.add_attr(extattrs)
 
         model = { _FQDN_PROPERTY: fqdn, _DELEGATE_TO_PROPERTY: delegate_to,
                   _VIEW_PROPERTY: self.dns_view, _COMMENT_PROPERTY: comment,
@@ -1266,7 +1266,7 @@ class Infoblox(object):
         if not network:
             self.module.fail_json(msg="You must specify the option 'name' and 'address'.")
         if extattrs is not None:
-            extattrs = add_attr(extattrs)
+            extattrs = self.add_attr(extattrs)
 
         if len(self.get_network_container(network)) > 0:
             self.module.exit_json(msg="Network already exists.")
@@ -1296,7 +1296,7 @@ class Infoblox(object):
         if object_ref is None:
             self.module.fail_json(msg="Name {} was not found.".format(current_network))
         if extattrs is not None:
-            extattrs = add_attr(extattrs)
+            extattrs = self.add_attr(extattrs)
 
         model = { _COMMENT_PROPERTY: comment, _EXT_ATTR_PROPERTY: extattrs }
         model = self._make_model(model)
@@ -1337,19 +1337,28 @@ class Infoblox(object):
         payload = {"extattrs": {attr_name: {"value": attr_value}}}
         return self.invoke("put", object_ref, json=payload)
 
-def add_attr(attributes):
-    if isinstance(attributes, dict) and len(attributes.keys()) > 1:
-        self.module.fail_json(msg="A dict was sent with more then one key/val pair. Please use {key:val } only .")
-    elif isinstance(attributes, dict):
-        attributes = [{ attributes.keys()[0]: attributes.values()[0] }]
-
-    attr = {}
-    for item in attributes:
-        if len(item.keys()) == 1 and len(item.values()) == 1:
-            attr[item.keys()[0]] = {'value': item.values()[0]}
+    def add_attr(self, attributes):
+        if isinstance(attributes, dict):
+            out_attributes = []
+            out_attributes.append(attributes)
+        elif attributes is None or attributes == '':
+            return None
+        elif isinstance(attributes, list):
+            out_attributes = attributes
         else:
-            self.module.fail_json(msg="A dict was sent with more then one key/val pair. Please use {key:val } only .")
-    return attr
+            self.module.fail_json(msg="Use only a single {key:val} pair or list of [{key:val}, {key:val}] pair  " + "{}.".format(attributes))
+
+        attr = {}
+        for item in out_attributes:
+            if isinstance(item, dict) and len(item.keys()) > 1:
+                self.module.fail_json(msg="A dict was sent with more then one key/val pair. Please use {key:val } only .")
+            #elif isinstance(item, dict):
+            #    attributes = [{ attributes.keys()[0]: attributes.values()[0] }]
+            elif len(item.keys()) == 1 and len(item.values()) == 1:
+                attr[item.keys()[0]] = {'value': item.values()[0]}
+            else:
+                self.module.fail_json(msg="A dict was sent with more then one key/val pair. Please use {key:val } only .")
+        return attr
 
 def _are_records_equivalent(a_record_1, a_record_2):
     """
