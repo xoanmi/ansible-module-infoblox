@@ -39,7 +39,14 @@ options:
     description:
       - Action to perform
     required: True
-    choices: ["get_host", "get_network", "get_range", "get_ipv6network", "get_next_available_ip", "add_host", "add_ipv6host", "delete_host", "set_extattr"]
+    choices: ["get_aliases", "get_cname", "get_a_record", "get_host", "get_network", "get_range", "get_next_available_ip", "get_fixedaddress",
+              "get_ipv6network", "get_ptr_record", "get_srv_record", "get_auth_zone", "get_forward_zone", "get_delegated_zone",
+              "add_alias", "add_cname", "add_host", "add_ipv6_host", "create_ptr_record", "get_txt_record", "get_network_container",
+              "create_a_record", "create_srv_record", "create_auth_zone", "create_forward_zone", "create_delegated_zone", "create_txt_record",
+              "create_network_container", "set_a_record", "set_name", "set_extattr", "update_a_record", "update_srv_record",
+              "update_ptr_record", "update_cname_record", "update_auth_zone", "update_forward_zone", "update_txt_record",
+              "update_network_container", "update_host_record", "delete_alias", "delete_cname", "delete_a_record", "delete_fixedaddress",
+              "delete_host", "delete_ptr_record", "delete_srv_record", "reserve_next_available_ip"]
   host:
     description:
       - Hostname variable to search, add or delete host object
