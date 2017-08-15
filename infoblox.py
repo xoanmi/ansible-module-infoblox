@@ -1144,6 +1144,9 @@ class Infoblox(object):
         if name != "dns-server":
             self.module.fail_json(msg="Currently only support dns-server.")
 
+        if len(self.get_forward_zone(fqdn)) > 0:
+            self.module.exit_json(msg="Network already exists.")
+
         forward_to = [{_NAME_PROPERTY: name, "address": address}]
         model = { _FQDN_PROPERTY: fqdn, _FORWARD_TO_PROPERTY: forward_to,
                   _VIEW_PROPERTY: self.dns_view, _COMMENT_PROPERTY: comment,
@@ -1154,18 +1157,11 @@ class Infoblox(object):
     # ---------------------------------------------------------------------------
     # update_forward_zone()
     # ---------------------------------------------------------------------------
-    def update_forward_zone(self, desired_name, desired_address,
+    def update_forward_zone(self, current_fqdn, desired_name, desired_address,
                          comment=None, ttl=None, extattrs=None):
         """
         Update forward zone entry
         """
-        if not isinstance(current, dict):
-            self.module.fail_json(msg="The 'current' check is not a dict")
-        elif not current.get('fqdn'):
-            self.module.fail_json(msg="The 'current' dict must contain a 'name' and 'address' key")
-        else:
-            current_fqdn = current.get('fqdn')
-
 
         object_ref = None
         fqdns = self.get_forward_zone(current_fqdn)
