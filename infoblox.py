@@ -247,20 +247,42 @@ class Infoblox(object):
                 return_model[model] = model_dict.get(model)
         return return_model
 
+
     # ---------------------------------------------------------------------------
     # get_network()
     # ---------------------------------------------------------------------------
-    def get_network(self, network):
+    def get_network(self, network=None, filters=None):
         """
         Search network in infoblox by using rest api
         Network format supported:
             - 192.168.1.0
             - 192.168.1.0/24
         """
-        if not network:
-            self.module.fail_json(msg="You must specify the option 'network'.")
-        params = {_NETWORK_PROPERTY: network, _NETWORK_VIEW_PROPERTY: self.net_view}
-        return self.invoke("get", "network", params=params)
+        if not network and not filters:
+            self.module.fail_json(msg="You must specify the option 'network' or 'filters'.")
+        elif not network and not filters:
+            self.module.fail_json(msg="Specify either 'network' or 'filter', but not both.")
+        elif network:
+            params = {_NETWORK_PROPERTY: network, _NETWORK_VIEW_PROPERTY: self.net_view}
+            return self.invoke("get", "network", params=params)
+        elif filters:
+            list_of_filters = ['network?']
+            if not isinstance(filters, list):
+                self.module.fail_json(msg="Specify a list of dicts with keys of 'filter' and 'value'")
+            for current_filter in filters:
+                if not isinstance(current_filter, dict):
+                    self.module.fail_json(msg="Please ensure each element is a dict with 'filter' and 'value' as keys")
+                elif not current_filter.get('filter') or not current_filter.get('value'):
+                    self.module.fail_json(msg="Please ensure each element is a dict with 'filter' and 'value' as keys")
+                list_of_filters.append(current_filter.get('filter') + '=' + current_filter.get('value'))
+                list_of_filters.append('&')
+            list_of_filters.pop()
+            out_filter = "".join(list_of_filters)
+            params = {_NETWORK_PROPERTY: network, _NETWORK_VIEW_PROPERTY: self.net_view}
+            return self.invoke("get", out_filter, params=params)
+        else:
+            self.module.fail_json(msg="Unknown get_network issue.")
+            
 
     # ---------------------------------------------------------------------------
     # get_range()
@@ -307,6 +329,25 @@ class Infoblox(object):
             self.module.exit_json(
                 msg="You must specify the option 'network_ref'.")
         params = {"_function": "next_available_ip"}
+        return self.invoke("post", network_ref, ok_codes=(200,), params=params)
+
+    # ---------------------------------------------------------------------------
+    # get_next_available_network()
+    # ---------------------------------------------------------------------------
+    def get_next_available_network(self, network_container, cidr):
+        """
+        Return next available ip in a network range
+        """
+        network_containter_info = self.get_network_container(network_container)
+        if len(network_containter_info) < 1:
+            self.module.fail_json(msg="Network Container does not exist.")
+        network_ref = network_containter_info[0].get('_ref').split(':')[0]
+
+        if not network_ref:
+            self.module.exit_json(
+                msg="Container was not found.")
+        params = {"_function": "next_available_network", "cidr": cidr, "num": 1 }
+        #raise Exception([network_ref, params])
         return self.invoke("post", network_ref, ok_codes=(200,), params=params)
 
     # ---------------------------------------------------------------------------
@@ -1261,6 +1302,29 @@ class Infoblox(object):
         return self.invoke("post", "zone_delegated", ok_codes=(200, 201, 400), json=model)
 
     # ---------------------------------------------------------------------------
+    # create_network()
+    # ---------------------------------------------------------------------------
+    def create_network(self, network, comment=None, ttl=None, extattrs=None):
+        """
+        Creates an PTR record with the given name that points to the given IP address.
+        For documentation on how to use the related part of the InfoBlox WAPI, refer to:
+        https://ipam.illinois.edu/wapidoc/objects/record.ptr.html
+        """
+        if not network:
+            self.module.fail_json(msg="You must specify the option 'name' and 'address'.")
+        if extattrs is not None:
+            extattrs = self.add_attr(extattrs)
+
+        if len(self.get_network(network)) > 0:
+            self.module.exit_json(msg="Network already exists.")
+
+        model = {_NETWORK_CONTAINER_PROPERTY: network, _NETWORK_PROPERTY: network,
+                 _COMMENT_PROPERTY: comment,
+                 _EXT_ATTR_PROPERTY: extattrs}
+        model = self._make_model(model)
+        return self.invoke("post", "network", ok_codes=(200, 201, 400), json=model)
+
+    # ---------------------------------------------------------------------------
     # get_network_container()
     # ---------------------------------------------------------------------------
     def get_network_container(self, network):
@@ -1433,9 +1497,10 @@ def main():
                 "get_next_available_ip", "get_fixedaddress", "get_ipv6network", "get_ptr_record",
                 "get_srv_record", "get_auth_zone", "get_forward_zone", "get_delegated_zone",
                 "add_alias", "add_cname", "add_host", "add_ipv6_host", "create_ptr_record",
-                "get_txt_record", "get_network_container",
+                "get_txt_record", "get_network_container", "get_next_available_network",
                 "create_a_record", "create_srv_record", "create_auth_zone", "create_forward_zone",
                 "create_delegated_zone", "create_txt_record", "create_network_container",
+                "create_network",
                 "set_a_record", "set_name", "set_extattr", "update_a_record", "update_srv_record",
                 "update_ptr_record", "update_cname_record", "update_auth_zone", "update_forward_zone",
                 "update_txt_record", "update_network_container", "update_host_record",
@@ -1460,7 +1525,9 @@ def main():
             srv_attr=dict(required=False, type="dict"),
             txt=dict(required=False, type='str'),
             fqdn=dict(required=False, type="raw"),
+            filters=dict(required=False, type="raw"),
             delegate_to=dict(required=False, type='raw'),
+            cidr=dict(required=False, type='raw'),
             comment=dict(required=False,
                          default="Object managed by ansible-infoblox module"),
             api_version=dict(required=False, default="1.7.1"),
@@ -1469,15 +1536,15 @@ def main():
             extattrs=dict(required=False, default=None, type='raw'),
             ttl=dict(required=False)
         ),
-        mutually_exclusive=[
-            ["network", "address"],
-            ["addresses", "address"],
-            ["host", "cname"]
-        ],
-        required_together=[
-            ["attr_name", "attr_value"],
+        #mutually_exclusive=[
+        #    ["network", "address"],
+        #    ["addresses", "address"],
+        #    ["host", "cname"]
+        #],
+        #required_together=[
+        #    ["attr_name", "attr_value"],
             # ["object_ref","name"]
-        ],
+        #],
         supports_check_mode=True,
     )
 
@@ -1512,10 +1579,12 @@ def main():
     dns_view = module.params["dns_view"]
     net_view = module.params["net_view"]
     txt = module.params["txt"]
+    filters = module.params["filters"]
     srv_attr = module.params["srv_attr"]
     delegate_to = module.params["delegate_to"]
     fqdn = module.params["fqdn"]
     ttl = _is_int(module.params["ttl"])
+    cidr = _is_int(module.params["cidr"])
 
     infoblox = Infoblox(module, server, username, password,
                         api_version, dns_view, net_view)
@@ -1527,6 +1596,14 @@ def main():
                 module.exit_json(result=result)
             else:
                 module.exit_json(msg="Network %s not found" % network)
+        elif filters:
+            result = infoblox.get_network(None, filters)
+            if isinstance(result, list):
+                module.exit_json(result=result)
+            #elif result == []:
+            #    module.exit_json(result=result)
+            else:
+                module.exit_json(msg="There was an issue with get_network filters")
         else:
             raise Exception(
                 "You must specify the option 'network' or 'address'.")
@@ -1556,11 +1633,11 @@ def main():
     elif action == "get_next_available_ip":
         if network:
             result = infoblox.get_network(network)
+        elif start_addr and end_addr:
+            result = infoblox.get_range(start_addr, end_addr)
         else:
             module.exit_json(msg="You must specify the option 'network'.")
-
-    elif start_addr and end_addr:
-        result = infoblox.get_range(start_addr, end_addr)
+        #return result
         if result:
             network_ref = result[0]["_ref"]
             result = infoblox.get_next_available_ip(network_ref)
@@ -1570,6 +1647,16 @@ def main():
             else:
                 module.fail_json(
                     msg="No available IPs in network: %s" % network)
+        else:
+            module.fail_json(
+                msg="No available IPs in network: %s" % network)
+
+    elif action == "get_next_available_network":
+        result = infoblox.get_next_available_network(network, cidr)
+        if result:
+            module.exit_json(msg=result)
+        else:
+            module.fail_json(msg="You must specify the option 'network'.")
 
     elif action == "reserve_next_available_ip":
         result = infoblox.reserve_next_available_ip(network)
@@ -1705,12 +1792,12 @@ def main():
             raise Exception("No network or range start/end address specified")
         if network_ref:
             network_ref = network_ref[0]["_ref"]  # Break ref out of dict
+            result = infoblox.create_host_record(host, address, network_ref, comment, ttl, extattrs)
         elif address:
             # Fix for when network or range is not needed
-            pass
+            result = infoblox.create_host_record(host, address, None, comment, ttl, extattrs)
         else:
             raise Exception("No network/range found for specified parameters")
-        result = infoblox.create_host_record(host, address, network_ref, comment, ttl, extattrs)
         if result:
             result = infoblox.get_host_by_name(host)
             module.exit_json(changed=True, result=result)
@@ -1901,6 +1988,12 @@ def main():
             raise Exception()
     elif action == "update_host_record":
         result = infoblox.update_host_record(host, address, current, comment, ttl, extattrs)
+        if result:
+            module.exit_json(changed=True, result=result)
+        else:
+            raise Exception()
+    elif action == "create_network":
+        result = infoblox.create_network(network, comment, ttl, extattrs)
         if result:
             module.exit_json(changed=True, result=result)
         else:
