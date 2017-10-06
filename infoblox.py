@@ -441,6 +441,8 @@ class Infoblox(object):
         model = {_NAME_PROPERTY: cname, _CANONICAL_PROPERTY: canonical,
                  _VIEW_PROPERTY: self.dns_view, _COMMENT_PROPERTY: comment,
                  _EXT_ATTR_PROPERTY: extattrs}
+        if(ttl is not None):
+            model.update({_USE_TTL_PROPERTY: True, _TTL_PROPERTY: int(ttl)})
         model = self._make_model(model)
         return self.invoke("post", "record:cname", ok_codes=(200, 201, 400), json=model)
 
@@ -473,8 +475,10 @@ class Infoblox(object):
 
         model = {_NAME_PROPERTY: desired_cname, _CANONICAL_PROPERTY: desired_canonical,
                  _VIEW_PROPERTY: self.dns_view, _COMMENT_PROPERTY: comment,
-                 _USE_TTL_PROPERTY: ttl is not None, _TTL_PROPERTY: ttl,
                  _EXT_ATTR_PROPERTY: extattrs}
+        if(ttl is not None):
+            model.update({_USE_TTL_PROPERTY: True, _TTL_PROPERTY: int(ttl)})
+            
         model = self._make_model(model)
         return self.invoke("put", object_ref, json=model)
 
@@ -522,7 +526,7 @@ class Infoblox(object):
     # ---------------------------------------------------------------------------
     # create_a_record()
     # ---------------------------------------------------------------------------
-    def create_a_record(self, name, address, comment=None, ttl=None, extattrs=None):
+    def create_a_record(self, name, address, comment=None, ttl=None, extattrs=None, roundrobin=False):
         """
         Creates an A record with the given name that points to the given IP address.
 
@@ -535,14 +539,18 @@ class Infoblox(object):
         if extattrs is not None:
             extattrs = self.add_attr(extattrs)
 
-        object_ref = self.get_a_object(name, address)
-        if object_ref:
-            self.module.exit_json(msg='A record Exists')
+        if not roundrobin:
+            object_ref = self.get_a_object(name, address)
+            if object_ref:
+                self.module.exit_json(msg='A record Exists')
+
 
         model = {_NAME_PROPERTY: name, _IPV4_ADDRESS_PROPERTY: address,
                  _VIEW_PROPERTY: self.dns_view, _COMMENT_PROPERTY: comment,
-                 _USE_TTL_PROPERTY: ttl is not None, _TTL_PROPERTY: ttl,
                  _EXT_ATTR_PROPERTY: extattrs}
+        if(ttl is not None):
+            model.update({_USE_TTL_PROPERTY: True, _TTL_PROPERTY: int(ttl)})
+            
         model = self._make_model(model)
         return self.invoke("post", "record:a", ok_codes=(200, 201, 400), json=model)
 
@@ -588,8 +596,10 @@ class Infoblox(object):
             extattrs = self.add_attr(extattrs)
 
         model = {_NAME_PROPERTY: desired_name, _IPV4_ADDRESS_PROPERTY: desired_address,
-                 _USE_TTL_PROPERTY: ttl is not None, _TTL_PROPERTY: ttl,
                  _COMMENT_PROPERTY: comment, _EXT_ATTR_PROPERTY: extattrs}
+        if(ttl is not None):
+            model.update({_USE_TTL_PROPERTY: True, _TTL_PROPERTY: int(ttl)})
+            
         model = self._make_model(model)
         return self.invoke("put", object_ref, json=model)
 
@@ -658,8 +668,9 @@ class Infoblox(object):
 
         model = {_PTRDNAME_PROPERTY: name, _NAME_PROPERTY: name, _IPV4_ADDRESS_PROPERTY: address,
                  _VIEW_PROPERTY: self.dns_view, _COMMENT_PROPERTY: comment,
-                 _USE_TTL_PROPERTY: ttl is not None, _TTL_PROPERTY: ttl,
                  _EXT_ATTR_PROPERTY: extattrs}
+        if(ttl is not None):
+            model.update({_USE_TTL_PROPERTY: True, _TTL_PROPERTY: int(ttl)})
         model = self._make_model(model)
         return self.invoke("post", "record:ptr", ok_codes=(200, 201, 400), json=model)
 
@@ -702,8 +713,9 @@ class Infoblox(object):
 
         model = {_PTRDNAME_PROPERTY: desired_name,
                  _IPV4_ADDRESS_PROPERTY: desired_address,
-                 _USE_TTL_PROPERTY: ttl is not None, _TTL_PROPERTY: ttl,
                  _EXT_ATTR_PROPERTY: extattrs}
+        if(ttl is not None):
+            model.update({_USE_TTL_PROPERTY: True, _TTL_PROPERTY: int(ttl)})
         model = self._make_model(model)
         return self.invoke("put", object_ref, json=model)
 
@@ -780,8 +792,10 @@ class Infoblox(object):
                  _PRIORITY_PROPERTY: priority, _TARGET_PROPERTY: dns_target,
                  _WEIGHT_PROPERTY: weight,
                  _VIEW_PROPERTY: self.dns_view, _COMMENT_PROPERTY: comment,
-                 _USE_TTL_PROPERTY: ttl is not None, _TTL_PROPERTY: ttl,
                  _EXT_ATTR_PROPERTY: extattrs}
+        if(ttl is not None):
+            model.update({_USE_TTL_PROPERTY: True, _TTL_PROPERTY: int(ttl)})
+            
         model = self._make_model(model)
         return self.invoke("post", "record:srv", ok_codes=(200, 201, 400), json=model)
 
@@ -822,8 +836,10 @@ class Infoblox(object):
         model = {_PORT_PROPERTY: port,
                  _PRIORITY_PROPERTY: priority, _TARGET_PROPERTY: dns_target,
                  _WEIGHT_PROPERTY: weight, _COMMENT_PROPERTY: comment,
-                 _USE_TTL_PROPERTY: ttl is not None, _TTL_PROPERTY: ttl,
                  _EXT_ATTR_PROPERTY: extattrs}
+        if(ttl is not None):
+            model.update({_USE_TTL_PROPERTY: True, _TTL_PROPERTY: int(ttl)})
+            
         model = self._make_model(model)
         return self.invoke("put", object_ref, json=model)
 
@@ -879,8 +895,10 @@ class Infoblox(object):
                     self.module.exit_json(msg='TXT object exist')
         model = {_NAME_PROPERTY: name, _TXT_PROPERTY: txt,
                  _VIEW_PROPERTY: self.dns_view,
-                 _USE_TTL_PROPERTY: ttl is not None, _TTL_PROPERTY: ttl,
                  _COMMENT_PROPERTY: comment, _EXT_ATTR_PROPERTY: extattrs}
+        if(ttl is not None):
+            model.update({_USE_TTL_PROPERTY: True, _TTL_PROPERTY: int(ttl)})
+            
         model = self._make_model(model)
         return self.invoke("post", "record:txt", ok_codes=(200, 201, 400), json=model)
 
@@ -939,8 +957,10 @@ class Infoblox(object):
 
         model = {_NAME_PROPERTY: desired_name, _TXT_PROPERTY: desired_txt,
                  _VIEW_PROPERTY: self.dns_view,
-                 _USE_TTL_PROPERTY: ttl is not None, _TTL_PROPERTY: ttl,
                  _COMMENT_PROPERTY: comment, _EXT_ATTR_PROPERTY: extattrs}
+        if(ttl is not None):
+            model.update({_USE_TTL_PROPERTY: True, _TTL_PROPERTY: int(ttl)})
+            
         model = self._make_model(model)
         return self.invoke("put", object_ref, json=model)
 
@@ -1040,8 +1060,10 @@ class Infoblox(object):
 
         model = {_NAME_PROPERTY: host, _IPV4_ADDRESS_PROPERTY: [{_IPV4_ADDRESS_PROPERTY: address}],
                  _VIEW_PROPERTY: self.dns_view,
-                 _USE_TTL_PROPERTY: ttl is not None, _TTL_PROPERTY: ttl,
                  _COMMENT_PROPERTY: comment, _EXT_ATTR_PROPERTY: extattrs}
+        if(ttl is not None):
+            model.update({_USE_TTL_PROPERTY: True, _TTL_PROPERTY: int(ttl)})
+            
         model = self._make_model(model)
         return self.invoke("post", "record:host", ok_codes=(200, 201, 400), json=model)
 
@@ -1097,8 +1119,10 @@ class Infoblox(object):
 
         model = {_NAME_PROPERTY: desired_name,
                  _VIEW_PROPERTY: self.dns_view,
-                 _USE_TTL_PROPERTY: ttl is not None, _TTL_PROPERTY: ttl,
                  _COMMENT_PROPERTY: comment, _EXT_ATTR_PROPERTY: extattrs}
+        if(ttl is not None):
+            model.update({_USE_TTL_PROPERTY: True, _TTL_PROPERTY: int(ttl)})
+            
         model = self._make_model(model)
         return self.invoke("put", object_ref, json=model)
 
@@ -1124,8 +1148,10 @@ class Infoblox(object):
 
         model = {_NAME_PROPERTY: host, _IPV6_ADDRESS_PROPERTY: [{"ipv6addr": address}],
                  _VIEW_PROPERTY: self.dns_view,
-                 _USE_TTL_PROPERTY: ttl is not None, _TTL_PROPERTY: ttl,
                  _COMMENT_PROPERTY: comment, _EXT_ATTR_PROPERTY: extattrs}
+        if(ttl is not None):
+            model.update({_USE_TTL_PROPERTY: True, _TTL_PROPERTY: int(ttl)})
+            
         model = self._make_model(model)
         return self.invoke("post", "record:host?_return_fields=ipv6addrs", ok_codes=(200, 201, 400), json=model)
 
@@ -1238,6 +1264,9 @@ class Infoblox(object):
         model = {_FQDN_PROPERTY: fqdn, _FORWARD_TO_PROPERTY: forward_to,
                  _VIEW_PROPERTY: self.dns_view, _COMMENT_PROPERTY: comment,
                  _EXT_ATTR_PROPERTY: extattrs}
+        if(ttl is not None):
+            model.update({_USE_TTL_PROPERTY: True, _TTL_PROPERTY: int(ttl)})
+                    
         model = self._make_model(model)
         return self.invoke("post", "zone_forward", ok_codes=(200, 201, 400), json=model)
 
@@ -1274,6 +1303,9 @@ class Infoblox(object):
         model = {_FORWARD_TO_PROPERTY: forward_to,
                  _VIEW_PROPERTY: self.dns_view, _COMMENT_PROPERTY: comment,
                  _EXT_ATTR_PROPERTY: extattrs}
+        if(ttl is not None):
+            model.update({_USE_TTL_PROPERTY: True, _TTL_PROPERTY: int(ttl)})
+            
         model = self._make_model(model)
         return self.invoke("put", object_ref, json=model)
 
@@ -1326,6 +1358,9 @@ class Infoblox(object):
         model = {_FQDN_PROPERTY: fqdn, _DELEGATE_TO_PROPERTY: delegate_to,
                  _VIEW_PROPERTY: self.dns_view, _COMMENT_PROPERTY: comment,
                  _EXT_ATTR_PROPERTY: extattrs}
+        if(ttl is not None):
+            model.update({_USE_TTL_PROPERTY: True, _TTL_PROPERTY: int(ttl)})
+            
         model = self._make_model(model)
         return self.invoke("post", "zone_delegated", ok_codes=(200, 201, 400), json=model)
 
@@ -1350,6 +1385,9 @@ class Infoblox(object):
         model = {_NETWORK_CONTAINER_PROPERTY: network, _NETWORK_PROPERTY: network,
                  _COMMENT_PROPERTY: comment,
                  _EXT_ATTR_PROPERTY: extattrs}
+        if(ttl is not None):
+            model.update({_USE_TTL_PROPERTY: True, _TTL_PROPERTY: int(ttl)})
+            
         model = self._make_model(model)
         return self.invoke("post", "network", ok_codes=(200, 201, 400), json=model)
 
@@ -1390,6 +1428,9 @@ class Infoblox(object):
         model = {_NETWORK_CONTAINER_PROPERTY: network, _NETWORK_PROPERTY: network,
                  _COMMENT_PROPERTY: comment,
                  _EXT_ATTR_PROPERTY: extattrs}
+        if(ttl is not None):
+            model.update({_USE_TTL_PROPERTY: True, _TTL_PROPERTY: int(ttl)})
+
         model = self._make_model(model)
         return self.invoke("post", "networkcontainer", ok_codes=(200, 201, 400), json=model)
 
@@ -1416,6 +1457,9 @@ class Infoblox(object):
             extattrs = self.add_attr(extattrs)
 
         model = {_COMMENT_PROPERTY: comment, _EXT_ATTR_PROPERTY: extattrs}
+        if(ttl is not None):
+            model.update({_USE_TTL_PROPERTY: True, _TTL_PROPERTY: int(ttl)})
+            
         model = self._make_model(model)
         return self.invoke("put", object_ref, json=model)
 
@@ -1606,7 +1650,8 @@ def main():
             dns_view=dict(required=False, default="default"),
             net_view=dict(required=False, default="default"),
             extattrs=dict(required=False, default=None, type='raw'),
-            ttl=dict(required=False)
+            ttl=dict(required=False),
+            roundrobin=dict(required=False, default=False, type='bool')
         ),
         # mutually_exclusive=[
         #    ["network", "address"],
@@ -1655,9 +1700,10 @@ def main():
     srv_attr = module.params["srv_attr"]
     delegate_to = module.params["delegate_to"]
     fqdn = module.params["fqdn"]
-    ttl = isinstance(module.params["ttl"])
-    cidr = isinstance(module.params["cidr"])
-
+    ttl = module.params["ttl"] 
+    cidr = module.params["cidr"]
+    roundrobin = module.params["roundrobin"]
+    
     infoblox = Infoblox(module, server, username, password,
                         api_version, dns_view, net_view)
 
@@ -1840,7 +1886,7 @@ def main():
             module.exit_json(changed=False, result=a_records)
         else:
             for address in addresses_of_a_records_to_create:
-                infoblox.create_a_record(name, address, comment, ttl, extattrs)
+                infoblox.create_a_record(name, address, comment, ttl, extattrs, roundrobin)
 
             # Validation
             set_a_records = infoblox.get_a_record(name)
@@ -2012,7 +2058,7 @@ def main():
             raise Exception()
     elif action == "create_a_record":
         result = infoblox.create_a_record(
-            name, address, comment, ttl, extattrs)
+            name, address, comment, ttl, extattrs, roundrobin)
         if result:
             module.exit_json(changed=True, result=result)
         else:
