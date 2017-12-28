@@ -360,7 +360,7 @@ class Infoblox(object):
     # ---------------------------------------------------------------------------
     # reserve_next_available_ip()
     # ---------------------------------------------------------------------------
-    def reserve_next_available_ip(self, network, mac_addr=None,
+    def reserve_next_available_ip(self, network, mac_addr="00:00:00:00:00:00",
                                   comment=None, extattrs=None):
         """
         Reserve ip address via fixedaddress in infoblox by using rest api
