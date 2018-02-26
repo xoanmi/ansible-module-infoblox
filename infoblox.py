@@ -161,6 +161,7 @@ _TTL_PROPERTY = "ttl"
 _USE_TTL_PROPERTY = "use_ttl"
 _NAME_PROPERTY = "name"
 _VIEW_PROPERTY = "view"
+_IPV4_ADDRESSES_PROPERTY = "ipv4addrs"
 _IPV4_ADDRESS_PROPERTY = "ipv4addr"
 _IPV6_ADDRESS_PROPERTY = "ipv6addr"
 _ID_PROPERTY = "_ref"
@@ -210,7 +211,8 @@ class Infoblox(object):
                            _ID_PROPERTY, _PTRDNAME_PROPERTY, _EXT_ATTR_PROPERTY, _TXT_PROPERTY,
                            _PORT_PROPERTY, _PRIORITY_PROPERTY, _WEIGHT_PROPERTY, _TARGET_PROPERTY,
                            _MAC_PROPERTY, _CANONICAL_PROPERTY, _FQDN_PROPERTY, _FORWARD_TO_PROPERTY,
-                           _NETWORK_PROPERTY, _NETWORK_VIEW_PROPERTY, _DELEGATE_TO_PROPERTY]
+                           _NETWORK_PROPERTY, _NETWORK_VIEW_PROPERTY, _DELEGATE_TO_PROPERTY,
+						   _IPV4_ADDRESSES_PROPERTY]
 
     def invoke(self, method, tail, ok_codes=(200,), **params):
         """
@@ -478,7 +480,7 @@ class Infoblox(object):
                  _EXT_ATTR_PROPERTY: extattrs}
         if(ttl is not None):
             model.update({_USE_TTL_PROPERTY: True, _TTL_PROPERTY: int(ttl)})
-            
+
         model = self._make_model(model)
         return self.invoke("put", object_ref, json=model)
 
@@ -550,7 +552,7 @@ class Infoblox(object):
                  _EXT_ATTR_PROPERTY: extattrs}
         if(ttl is not None):
             model.update({_USE_TTL_PROPERTY: True, _TTL_PROPERTY: int(ttl)})
-            
+
         model = self._make_model(model)
         return self.invoke("post", "record:a", ok_codes=(200, 201, 400), json=model)
 
@@ -599,7 +601,7 @@ class Infoblox(object):
                  _COMMENT_PROPERTY: comment, _EXT_ATTR_PROPERTY: extattrs}
         if(ttl is not None):
             model.update({_USE_TTL_PROPERTY: True, _TTL_PROPERTY: int(ttl)})
-            
+
         model = self._make_model(model)
         return self.invoke("put", object_ref, json=model)
 
@@ -795,7 +797,7 @@ class Infoblox(object):
                  _EXT_ATTR_PROPERTY: extattrs}
         if(ttl is not None):
             model.update({_USE_TTL_PROPERTY: True, _TTL_PROPERTY: int(ttl)})
-            
+
         model = self._make_model(model)
         return self.invoke("post", "record:srv", ok_codes=(200, 201, 400), json=model)
 
@@ -839,7 +841,7 @@ class Infoblox(object):
                  _EXT_ATTR_PROPERTY: extattrs}
         if(ttl is not None):
             model.update({_USE_TTL_PROPERTY: True, _TTL_PROPERTY: int(ttl)})
-            
+
         model = self._make_model(model)
         return self.invoke("put", object_ref, json=model)
 
@@ -898,7 +900,7 @@ class Infoblox(object):
                  _COMMENT_PROPERTY: comment, _EXT_ATTR_PROPERTY: extattrs}
         if(ttl is not None):
             model.update({_USE_TTL_PROPERTY: True, _TTL_PROPERTY: int(ttl)})
-            
+
         model = self._make_model(model)
         return self.invoke("post", "record:txt", ok_codes=(200, 201, 400), json=model)
 
@@ -960,7 +962,7 @@ class Infoblox(object):
                  _COMMENT_PROPERTY: comment, _EXT_ATTR_PROPERTY: extattrs}
         if(ttl is not None):
             model.update({_USE_TTL_PROPERTY: True, _TTL_PROPERTY: int(ttl)})
-            
+
         model = self._make_model(model)
         return self.invoke("put", object_ref, json=model)
 
@@ -1058,12 +1060,12 @@ class Infoblox(object):
         else:
             raise Exception("Function options missing!")
 
-        model = {_NAME_PROPERTY: host, _IPV4_ADDRESS_PROPERTY: [{_IPV4_ADDRESS_PROPERTY: address}],
+        model = {_NAME_PROPERTY: host, _IPV4_ADDRESSES_PROPERTY: [{_IPV4_ADDRESS_PROPERTY: address}],
                  _VIEW_PROPERTY: self.dns_view,
                  _COMMENT_PROPERTY: comment, _EXT_ATTR_PROPERTY: extattrs}
         if(ttl is not None):
             model.update({_USE_TTL_PROPERTY: True, _TTL_PROPERTY: int(ttl)})
-            
+
         model = self._make_model(model)
         return self.invoke("post", "record:host", ok_codes=(200, 201, 400), json=model)
 
@@ -1122,7 +1124,7 @@ class Infoblox(object):
                  _COMMENT_PROPERTY: comment, _EXT_ATTR_PROPERTY: extattrs}
         if(ttl is not None):
             model.update({_USE_TTL_PROPERTY: True, _TTL_PROPERTY: int(ttl)})
-            
+
         model = self._make_model(model)
         return self.invoke("put", object_ref, json=model)
 
@@ -1151,7 +1153,7 @@ class Infoblox(object):
                  _COMMENT_PROPERTY: comment, _EXT_ATTR_PROPERTY: extattrs}
         if(ttl is not None):
             model.update({_USE_TTL_PROPERTY: True, _TTL_PROPERTY: int(ttl)})
-            
+
         model = self._make_model(model)
         return self.invoke("post", "record:host?_return_fields=ipv6addrs", ok_codes=(200, 201, 400), json=model)
 
@@ -1266,7 +1268,7 @@ class Infoblox(object):
                  _EXT_ATTR_PROPERTY: extattrs}
         if(ttl is not None):
             model.update({_USE_TTL_PROPERTY: True, _TTL_PROPERTY: int(ttl)})
-                    
+
         model = self._make_model(model)
         return self.invoke("post", "zone_forward", ok_codes=(200, 201, 400), json=model)
 
@@ -1305,7 +1307,7 @@ class Infoblox(object):
                  _EXT_ATTR_PROPERTY: extattrs}
         if(ttl is not None):
             model.update({_USE_TTL_PROPERTY: True, _TTL_PROPERTY: int(ttl)})
-            
+
         model = self._make_model(model)
         return self.invoke("put", object_ref, json=model)
 
@@ -1360,7 +1362,7 @@ class Infoblox(object):
                  _EXT_ATTR_PROPERTY: extattrs}
         if(ttl is not None):
             model.update({_USE_TTL_PROPERTY: True, _TTL_PROPERTY: int(ttl)})
-            
+
         model = self._make_model(model)
         return self.invoke("post", "zone_delegated", ok_codes=(200, 201, 400), json=model)
 
@@ -1387,7 +1389,7 @@ class Infoblox(object):
                  _EXT_ATTR_PROPERTY: extattrs}
         if(ttl is not None):
             model.update({_USE_TTL_PROPERTY: True, _TTL_PROPERTY: int(ttl)})
-            
+
         model = self._make_model(model)
         return self.invoke("post", "network", ok_codes=(200, 201, 400), json=model)
 
@@ -1459,7 +1461,7 @@ class Infoblox(object):
         model = {_COMMENT_PROPERTY: comment, _EXT_ATTR_PROPERTY: extattrs}
         if(ttl is not None):
             model.update({_USE_TTL_PROPERTY: True, _TTL_PROPERTY: int(ttl)})
-            
+
         model = self._make_model(model)
         return self.invoke("put", object_ref, json=model)
 
@@ -1700,10 +1702,10 @@ def main():
     srv_attr = module.params["srv_attr"]
     delegate_to = module.params["delegate_to"]
     fqdn = module.params["fqdn"]
-    ttl = module.params["ttl"] 
+    ttl = module.params["ttl"]
     cidr = module.params["cidr"]
     roundrobin = module.params["roundrobin"]
-    
+
     infoblox = Infoblox(module, server, username, password,
                         api_version, dns_view, net_view)
 
