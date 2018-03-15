@@ -2018,7 +2018,7 @@ def main():
         if result:
             module.exit_json(result=result)
         else:
-            raise Exception()
+            module.exit_json(failed=True, msg="PTR record for IP %s not found" % address)
     elif action == "create_ptr_record":
         result = infoblox.create_ptr_record(
             name, address, comment, ttl, extattrs)
@@ -2057,7 +2057,7 @@ def main():
         if result:
             module.exit_json(result=result)
         else:
-            raise Exception()
+            module.exit_json(failed=True, msg="A record for name %s not found" % name)
     elif action == "create_a_record":
         result = infoblox.create_a_record(
             name, address, comment, ttl, extattrs, roundrobin)
@@ -2077,7 +2077,7 @@ def main():
         if result:
             module.exit_json(result=result)
         else:
-            raise Exception()
+            module.exit_json(failed=True, msg="SRV record for name %s not found" % name)
     elif action == "create_srv_record":
         result = infoblox.create_srv_record(
             name, srv_attr, comment, ttl, extattrs)
@@ -2103,7 +2103,7 @@ def main():
         if result:
             module.exit_json(result=result)
         else:
-            raise Exception()
+            module.exit_json(failed=True, msg="TXT record for name %s not found" % name)
     elif action == "create_txt_record":
         result = infoblox.create_txt_record(name, txt, comment, ttl, extattrs)
         if result:
@@ -2135,7 +2135,7 @@ def main():
         if result:
             module.exit_json(result=result)
         else:
-            raise Exception()
+            module.exit_json(failed=True, msg="Network Container for network %s not found" % network)
     elif action == "create_network_container":
         result = infoblox.create_network_container(
             network, comment, ttl, extattrs)
@@ -2155,7 +2155,7 @@ def main():
         if result:
             module.exit_json(result=result)
         else:
-            raise Exception()
+            module.exit_json(failed=True, msg="Auth zone for fqdn %s not found" % fqdn)
     elif action == "create_auth_zone":
         result = infoblox.create_auth_zone(fqdn, comment, ttl, extattrs)
         if result:
@@ -2173,7 +2173,7 @@ def main():
         if result:
             module.exit_json(result=result)
         else:
-            raise Exception()
+            module.exit_json(failed=True, msg="Forward zone for fqdn %s not found" % fqdn)
     elif action == "create_forward_zone":
         result = infoblox.create_forward_zone(
             fqdn, name, address, comment, ttl, extattrs)
@@ -2193,7 +2193,7 @@ def main():
         if result:
             module.exit_json(result=result)
         else:
-            raise Exception()
+            module.exit_json(failed=True, msg="Delegated zone for fqdn %s not found" % fqdn)
     elif action == "create_delegated_zone":
         result = infoblox.create_delegated_zone(
             fqdn, delegate_to, comment, ttl, extattrs)
