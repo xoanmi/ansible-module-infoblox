@@ -3,7 +3,7 @@ Awesome infobox module for ansible
 
 ## Dependencies
 
-- Python "requests" module is required
+- Python "requests <= 2.16.0" module is required
 ```
 sudo pip install requests
 ```
