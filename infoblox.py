@@ -22,7 +22,7 @@ description:
   - Manage Infoblox IPAM and DNS via Web API
 version_added: "2.5"
 requirements:
-  - "requests >= 2.9.1"
+  - "requests <= 2.16.0"
 options:
   server:
     description:
