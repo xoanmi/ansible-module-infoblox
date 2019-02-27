@@ -48,7 +48,7 @@ options:
               "create_network_container", "set_a_record", "set_name", "set_extattr", "update_a_record", "update_srv_record",
               "update_ptr_record", "update_cname_record", "update_auth_zone", "update_forward_zone", "update_txt_record",
               "update_network_container", "update_host_record", "delete_alias", "delete_cname", "delete_a_record", "delete_fixedaddress",
-              "delete_host", "delete_ptr_record", "delete_srv_record", "reserve_next_available_ip"]
+              "delete_host", "delete_ptr_record", "delete_srv_record", "reserve_next_available_ip, search_a_record, search_host_record"]
   host:
     description:
       - Hostname variable to search, add or delete host object
@@ -524,6 +524,20 @@ class Infoblox(object):
         params = {_NAME_PROPERTY: name, _VIEW_PROPERTY: self.dns_view,
                   _RETURN_FIELDS_PROPERTY: my_property}
         return self.invoke("get", "record:a", params=params)
+
+    # ---------------------------------------------------------------------------
+    # seach_a_record()
+    # ---------------------------------------------------------------------------
+    def search_a_record(self, name):
+        params = {_NAME_PROPERTY + "~": name }
+        return self.invoke("get", "record:a", params=params)
+
+    # ---------------------------------------------------------------------------
+    # seach_host_record()
+    # ---------------------------------------------------------------------------
+    def search_host_record(self, name):
+        params = {_NAME_PROPERTY + "~": name }
+        return self.invoke("get", "record:host", params=params)
 
     # ---------------------------------------------------------------------------
     # create_a_record()
@@ -1624,7 +1638,7 @@ def main():
                 "update_txt_record", "update_network_container", "update_host_record",
                 "delete_alias", "delete_cname", "delete_a_record", "delete_fixedaddress", "delete_host",
                 "delete_ptr_record", "delete_srv_record",
-                "reserve_next_available_ip"
+                "reserve_next_available_ip", "search_a_record", "search_host_record"
             ]),
             host=dict(required=False),
             network=dict(required=False),
@@ -2201,6 +2215,18 @@ def main():
             module.exit_json(changed=True, result=result)
         else:
             raise Exception()
+    elif action == "search_a_record":
+        result = infoblox.search_a_record(name)
+        if result:
+            module.exit_json(changed=True, result=result)
+        else:
+            module.exit_json(changed=False, result=result)
+    elif action == "search_host_record":
+        result = infoblox.search_host_record(name)
+        if result:
+            module.exit_json(changed=True, result=result)
+        else:
+            module.exit_json(changed=False, result=result)
 
 
 if __name__ == "__main__":
